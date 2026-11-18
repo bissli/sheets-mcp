@@ -13,3 +13,4 @@ venv/
 *.jsonl.*
 .coverage
 htmlcov/
+.handoff/
