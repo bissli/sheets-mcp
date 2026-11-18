@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "sheets-mcp"
+version = "0.1.0"
+description = "A general-purpose MCP server for Google Sheets."
+authors = ["bissli <bissli@xyz.org>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "sheets_mcp", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+mcp = "^2.3"
+google-api-python-client = "^2.150"
+google-auth = "^2.35"
+google-auth-oauthlib = "^1.2"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.4"
+
+[tool.poetry.scripts]
+sheets-mcp = "sheets_mcp.__main__:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
