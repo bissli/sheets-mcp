@@ -1,4 +1,4 @@
-"""Drive v3 and Sheets v4 clients, and the lookups every module shares.
+"""Drive v3 and Sheets v4 clients, and the calls every module shares.
 """
 import string
 from dataclasses import dataclass
@@ -34,6 +34,52 @@ def build_clients(credentials: Credentials) -> Clients:
     return Clients(
         drive=build('drive', 'v3', credentials=credentials, cache_discovery=False),
         sheets=build('sheets', 'v4', credentials=credentials, cache_discovery=False))
+
+
+def get_spreadsheet(clients: Clients, spreadsheet_id: str, fields: str) -> dict:
+    """The Sheets API Spreadsheet resource, cut to a field mask.
+
+    Parameters
+    ----------
+    clients : Clients
+    spreadsheet_id : str
+    fields : str
+        Sheets v4 field mask, such as 'sheets.properties(sheetId,title)'.
+
+    Returns
+    -------
+    dict
+        The masked fields. Google leaves out a zero or false value, so a
+        sheetId or index of 0 is absent.
+    """
+    return clients.sheets.spreadsheets().get(
+        spreadsheetId=spreadsheet_id, fields=fields).execute()
+
+
+def batch_update(
+        clients: Clients,
+        spreadsheet_id: str,
+        requests: list[dict]) -> list[dict]:
+    """Send Sheets API requests in one batchUpdate, which Google applies
+    whole or not at all.
+
+    Parameters
+    ----------
+    clients : Clients
+    spreadsheet_id : str
+    requests : list of dict
+        Requests such as the tabs and layout builders return, applied in
+        order, so a later request can name a tab an earlier one adds.
+
+    Returns
+    -------
+    list of dict
+        One reply per request, in order; {} for a request kind with no
+        reply.
+    """
+    reply = clients.sheets.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id, body={'requests': requests}).execute()
+    return reply.get('replies', [])
 
 
 def tab_properties(clients: Clients, spreadsheet_id: str, tab: str) -> dict:

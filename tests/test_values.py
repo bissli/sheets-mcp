@@ -207,3 +207,32 @@ def test_read_blocks_sends_options_and_ranges_unchanged():
             'dateTimeRenderOption': 'FORMATTED_STRING',
             },
         ]
+
+
+def test_write_blocks_sends_named_range_unchanged():
+    """Verify write_blocks sends a bare named range as given, with RAW
+    input when parse is False.
+
+    Mutation: parsing the range as A1, which quotes 'STATUS' as a tab, or
+    sending USER_ENTERED when parse is False.
+    Oracle: a stub that records the batchUpdate body.
+    """
+    calls = []
+
+    def batch_update(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(execute=lambda: {'responses': []})
+
+    value_api = SimpleNamespace(batchUpdate=batch_update)
+    sheets = SimpleNamespace(
+        spreadsheets=lambda: SimpleNamespace(values=lambda: value_api))
+    values.write_blocks(
+        Clients(None, sheets), 'book',
+        [RangeValues(range='STATUS', values=[['=done']])], parse=False)
+    assert calls == [{
+        'spreadsheetId': 'book',
+        'body': {
+            'valueInputOption': 'RAW',
+            'data': [{'range': 'STATUS', 'values': [['=done']]}],
+            },
+        }]

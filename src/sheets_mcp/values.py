@@ -190,14 +190,45 @@ def write_ranges(
         {'range': 'Data!D1', 'values': [['=SUM(B2:B100)']]}])
     -> {'updated_ranges': ['Data!A1:B2', 'Data!D1'], 'updated_cells': 5}
     """
+    blocks = [
+        block.model_copy(update={'range': a1.to_a1(a1.parse_range(block.range))})
+        for block in data
+        ]
+    return write_blocks(clients, spreadsheet_id, blocks, parse)
+
+
+def write_blocks(
+        clients: Clients,
+        spreadsheet_id: str,
+        data: list[RangeValues],
+        parse: bool = True) -> dict:
+    """Write values into ranges sent to Google unchanged, in one call.
+
+    Parameters
+    ----------
+    clients : Clients
+        Google clients.
+    spreadsheet_id : str
+        Spreadsheet id.
+    data : list of RangeValues
+        Each range is an A1 range or a named range, sent as given, so a
+        tab title with a space needs its quotes: "'Q3 Model'!A1". A None
+        value leaves its cell as it is, and '' clears it.
+    parse : bool, default True
+        As in write_ranges, URL-fetching formulas refused.
+
+    Returns
+    -------
+    dict
+        As write_ranges returns.
+    """
     body_data = []
     for block in data:
         if parse:
             for row in block.values:
                 for value in row:
                     refuse_url_functions(value)
-        target = a1.to_a1(a1.parse_range(block.range))
-        body_data.append({'range': target, 'values': block.values})
+        body_data.append({'range': block.range, 'values': block.values})
     reply = clients.sheets.spreadsheets().values().batchUpdate(
         spreadsheetId=spreadsheet_id,
         body={

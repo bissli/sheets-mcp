@@ -396,7 +396,11 @@ def delete_file(clients: Clients, file_id: str, permanent: bool = False) -> dict
     return {'file_id': file_id, 'outcome': 'trashed'}
 
 
-def create_folder(clients: Clients, name: str, parent_id: str | None = None) -> dict:
+def create_folder(
+        clients: Clients,
+        name: str,
+        parent_id: str | None = None,
+        app_properties: dict[str, str] | None = None) -> dict:
     """Create a folder.
 
     Parameters
@@ -406,6 +410,9 @@ def create_folder(clients: Clients, name: str, parent_id: str | None = None) -> 
     name : str
     parent_id : str, optional
         Folder to create it in. Omitted, it goes in My Drive.
+    app_properties : dict of str to str, optional
+        Drive appProperties: tags only this Google Cloud app can read, which
+        a Drive query matches as appProperties has {key='k' and value='v'}.
 
     Returns
     -------
@@ -420,6 +427,8 @@ def create_folder(clients: Clients, name: str, parent_id: str | None = None) -> 
     body = {'name': name, 'mimeType': FOLDER_MIME}
     if parent_id:
         body['parents'] = [parent_id]
+    if app_properties:
+        body['appProperties'] = app_properties
     created = clients.drive.files().create(
         body=body, fields=FILE_FIELDS, **DRIVE_FLAGS).execute()
     return file_summary(created)

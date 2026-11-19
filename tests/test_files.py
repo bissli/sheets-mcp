@@ -1,5 +1,8 @@
+from types import SimpleNamespace
+
 import pytest
 from sheets_mcp import files
+from sheets_mcp.google import Clients
 
 
 def test_list_files_filters_kind_name_folder_and_trash(fake, clients):
@@ -240,3 +243,28 @@ def test_import_bytes_becomes_spreadsheet_in_folder(fake, clients):
     assert fake.files[imported['spreadsheet_id']]['parents'] == [folder]
     assert fake.cells(imported['spreadsheet_id'], 'Sheet1') == [
         ['name', 'price'], ['acme', 12]]
+
+
+def test_create_folder_sends_app_properties():
+    """Verify create_folder puts app_properties and the parent in the
+    Drive create body.
+
+    Mutation: dropping appProperties from the body, or the parent.
+    Oracle: a stub that records the files.create body.
+    """
+    bodies = []
+
+    def create(body, **kwargs):
+        bodies.append(body)
+        created = {'id': 'f1', 'name': body['name'], 'mimeType': body['mimeType']}
+        return SimpleNamespace(execute=lambda: created)
+
+    drive = SimpleNamespace(files=lambda: SimpleNamespace(create=create))
+    files.create_folder(
+        Clients(drive, None), 'Ana', parent_id='p1', app_properties={'owner': 'x1'})
+    assert bodies == [{
+        'name': 'Ana',
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': ['p1'],
+        'appProperties': {'owner': 'x1'},
+        }]
