@@ -7,8 +7,8 @@ RANGE_PATTERN = re.compile(
     r"""
     ^(?P<tab>'(?:[^']|'')+'|[^'!:]+)
     (?:!
-      (?P<first_column>[A-Z]+)?(?P<first_row>[1-9][0-9]*)?
-      (?::(?P<last_column>[A-Z]+)?(?P<last_row>[1-9][0-9]*)?)?
+      \$?(?P<first_column>[A-Z]+)?\$?(?P<first_row>[1-9][0-9]*)?
+      (?::\$?(?P<last_column>[A-Z]+)?\$?(?P<last_row>[1-9][0-9]*)?)?
     )?$
     """,
     re.IGNORECASE | re.VERBOSE)
@@ -72,7 +72,8 @@ def parse_range(text: str) -> CellRange:
     text : str
         'Tab!A1:F10', 'Tab!B3', 'Tab!A:F', 'Tab!A2:F', 'Tab!2:5' or 'Tab'.
         A tab title with spaces or punctuation is quoted: "'Q3 Model'!B2".
-        A '$' is dropped, so 'Tab!$A$1' is 'Tab!A1'.
+        A '$' before a column or row is dropped, so 'Tab!$A$1' is
+        'Tab!A1'. A '$' in the tab title stays.
 
     Returns
     -------
@@ -84,7 +85,7 @@ def parse_range(text: str) -> CellRange:
         The text does not parse, names no tab or row 0, mixes a column end
         with a row-only end ('Tab!A1:5'), or runs backward.
     """
-    match = RANGE_PATTERN.match(text.strip().replace('$', ''))
+    match = RANGE_PATTERN.match(text.strip())
     if match is None:
         raise ValueError(
             f'{text!r} is not an A1 range with a tab, such as '

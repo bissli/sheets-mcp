@@ -23,6 +23,21 @@ def test_parse_range_forms(text, expected):
     assert a1.parse_range(text) == expected
 
 
+@pytest.mark.parametrize(('text', 'expected'), [
+    ("'Q$ Model'!A1:B1", a1.CellRange('Q$ Model', 1, 1, 1, 2)),
+    ('Q$!$B$2', a1.CellRange('Q$', 2, 2, 2, 2)),
+    ])
+def test_parse_range_keeps_a_dollar_in_the_tab_title(text, expected):
+    """Verify a '$' in a tab title stays, so the range names that tab.
+
+    Mutation: '$' stripped from the whole text, which turns 'Q$ Model' into
+      'Q Model' and sends a write to another tab.
+    Oracle: tab titles holding '$', written by hand.
+    """
+    assert a1.parse_range(text) == expected
+    assert a1.parse_range(a1.to_a1(expected)) == expected
+
+
 @pytest.mark.parametrize('text', [
     'A1:B2', 'Data!A0', 'Data!C1:A1', 'Data!A5:B2', 'Data!A1:5', 'Data!1:F', 'Data!:B'])
 def test_parse_range_refuses(text):
