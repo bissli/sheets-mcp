@@ -1,6 +1,5 @@
 import pytest
 from sheets_mcp import a1
-from sheets_mcp.errors import SheetsError
 
 
 @pytest.mark.parametrize(('text', 'expected'), [
@@ -33,7 +32,7 @@ def test_parse_range_refuses(text):
     Mutation: dropping the backward or mixed-form check, or accepting row 0.
     Oracle: Sheets numbers rows from 1 and a range runs forward.
     """
-    with pytest.raises(SheetsError):
+    with pytest.raises(ValueError):
         a1.parse_range(text)
 
 

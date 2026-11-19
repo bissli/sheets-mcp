@@ -3,8 +3,6 @@
 import re
 from dataclasses import dataclass
 
-from sheets_mcp.errors import SheetsError
-
 RANGE_PATTERN = re.compile(
     r"""
     ^(?P<tab>'(?:[^']|'')+'|[^'!:]+)
@@ -82,13 +80,13 @@ def parse_range(text: str) -> CellRange:
 
     Raises
     ------
-    SheetsError
+    ValueError
         The text does not parse, names no tab or row 0, mixes a column end
         with a row-only end ('Tab!A1:5'), or runs backward.
     """
     match = RANGE_PATTERN.match(text.strip().replace('$', ''))
     if match is None:
-        raise SheetsError(
+        raise ValueError(
             f'{text!r} is not an A1 range with a tab, such as '
             "'Data!A1:F10' or \"'Q3 Model'!B2:F40\"")
     tab = match['tab']
@@ -103,12 +101,12 @@ def parse_range(text: str) -> CellRange:
         last_column = match['last_column'] and column_number(match['last_column'])
         last_row = match['last_row'] and int(match['last_row'])
     if bool(first_column) != bool(last_column) or (last_row and not first_row):
-        raise SheetsError(
+        raise ValueError(
             f'{text!r} mixes cell, column and row forms; write it as '
             "'Tab!A1:F10', 'Tab!A:F', 'Tab!A2:F' or 'Tab!2:5'")
     if (first_column and first_column > last_column
         or first_row and last_row and first_row > last_row):
-        raise SheetsError(f'{text!r} runs backward')
+        raise ValueError(f'{text!r} runs backward')
     return CellRange(
         tab=tab,
         first_row=first_row or None,

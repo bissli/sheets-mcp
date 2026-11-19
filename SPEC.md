@@ -56,8 +56,9 @@ can reach needs the full Drive scope.
   IMPORTRANGE and IMAGE, which fetch a URL and can send cell contents to a
   third party when a prompt injection writes them.
 - `read_range` answers in pages under a byte budget, with `next_offset`
-  for the next page. A range may be open (`Data!A:F`, `Data`), and the
-  server reads it in row blocks.
+  for the next page. A range may be open (`Data!A:F`, `Data`). Each page
+  reads from `offset` to the range end in one request, and Google trims
+  trailing empty rows, so an open range ends at the last row with data.
 - `export_spreadsheet` refuses to overwrite an existing local file unless
   `overwrite=true`.
 
@@ -74,6 +75,11 @@ can reach needs the full Drive scope.
 | `values`   | reads, writes, appends and clears                   |
 | `layout`   | rows, columns and cell formats                      |
 | `server`   | tool registration, annotations, error translation   |
+
+Every module but `server` and `__main__` imports no `mcp`, so another
+program can use them as a library. They raise `ValueError` with text meant
+for the caller and let Google's `HttpError` pass. `server` turns both into
+a `ToolError`.
 
 The Google API client is not thread-safe, and the MCP SDK runs each sync
 tool on a worker thread, so every call builds its own clients.

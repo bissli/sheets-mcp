@@ -1,5 +1,4 @@
 import pytest
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.formulas import refuse_url_functions
 
 
@@ -21,7 +20,7 @@ def test_refuses_url_functions(value):
     or a quoted tab name holding '"' read as a string literal.
     Oracle: each value calls one of the six refused functions.
     """
-    with pytest.raises(SheetsError):
+    with pytest.raises(ValueError):
         refuse_url_functions(value)
 
 

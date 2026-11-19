@@ -1,6 +1,5 @@
 import pytest
 from sheets_mcp import values
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.values import RangeValues
 
 
@@ -69,7 +68,7 @@ def test_read_range_refuses_offset_outside_range(fake, clients):
     """
     book = fake.add_spreadsheet('Book', {'Data': [['a'], ['b'], ['c']]})
     for offset in (1, 4):
-        with pytest.raises(SheetsError, match='outside'):
+        with pytest.raises(ValueError, match='outside'):
             values.read_range(clients, book, 'Data!A2:A3', offset=offset)
 
 
@@ -113,7 +112,7 @@ def test_write_ranges_refuses_url_formula_and_writes_nothing(fake, clients):
         RangeValues(range='Data!A1', values=[['safe']]),
         RangeValues(range='Data!B1', values=[['=IMPORTXML("https://example.com","//a")']]),
         ]
-    with pytest.raises(SheetsError, match='IMPORTXML'):
+    with pytest.raises(ValueError, match='IMPORTXML'):
         values.write_ranges(clients, book, blocks)
     assert fake.cells(book, 'Data') == []
     values.write_ranges(clients, book, blocks, parse=False)
@@ -139,7 +138,7 @@ def test_append_rows_refuses_url_formula(fake, clients):
     Oracle: IMAGE is one of the refused functions.
     """
     book = fake.add_spreadsheet('Book', {'Log': [['day']]})
-    with pytest.raises(SheetsError, match='IMAGE'):
+    with pytest.raises(ValueError, match='IMAGE'):
         values.append_rows(clients, book, 'Log', [['=IMAGE("https://example.com/x")']])
 
 

@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 from sheets_mcp import a1
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.google import Clients, rgb_color, tab_properties
 
 Dimension = Literal['rows', 'columns']
@@ -92,7 +91,7 @@ def edit_rows_columns(
 
     Raises
     ------
-    SheetsError
+    ValueError
         'move' without destination, 'resize' without size, or start or
         count below 1.
 
@@ -103,21 +102,21 @@ def edit_rows_columns(
     -> {'action': 'insert', 'dimension': 'rows', 'start': 2, 'count': 3}
     """
     if start < 1 or count < 1:
-        raise SheetsError('start and count count from 1')
+        raise ValueError('start and count count from 1')
     sheet_id = tab_properties(clients, spreadsheet_id, tab)['sheetId']
     span = dimension_range(sheet_id, dimension, start, count)
     if action == 'insert':
         request = {'insertDimension': {'range': span, 'inheritFromBefore': start > 1}}
     elif action == 'move':
         if destination is None or destination < 1:
-            raise SheetsError("'move' needs destination, counted from 1")
+            raise ValueError("'move' needs destination, counted from 1")
         request = {'moveDimension': {
             'source': span,
             'destinationIndex': destination - 1,
             }}
     elif action == 'resize':
         if size is None or size < 1:
-            raise SheetsError("'resize' needs size in pixels")
+            raise ValueError("'resize' needs size in pixels")
         request = {'updateDimensionProperties': {
             'range': span,
             'properties': {'pixelSize': size},
@@ -167,7 +166,7 @@ def delete_rows_columns(
 
     Raises
     ------
-    SheetsError
+    ValueError
         start or count below 1.
 
     Examples
@@ -177,7 +176,7 @@ def delete_rows_columns(
     -> {'dimension': 'columns', 'start': 3, 'count': 2}
     """
     if start < 1 or count < 1:
-        raise SheetsError('start and count count from 1')
+        raise ValueError('start and count count from 1')
     sheet_id = tab_properties(clients, spreadsheet_id, tab)['sheetId']
     request = {'deleteDimension': {
         'range': dimension_range(sheet_id, dimension, start, count),
@@ -249,7 +248,7 @@ def format_range(
 
     Raises
     ------
-    SheetsError
+    ValueError
         No option was given.
 
     Examples
@@ -310,7 +309,7 @@ def format_range(
         merge_type = MERGE_TYPES[merge]
         requests.append({'mergeCells': {'range': grid, 'mergeType': merge_type}})
     if not requests:
-        raise SheetsError('give at least one format option')
+        raise ValueError('give at least one format option')
     clients.sheets.spreadsheets().batchUpdate(
         spreadsheetId=spreadsheet_id, body={'requests': requests}).execute()
     options = {

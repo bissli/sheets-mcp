@@ -1,7 +1,6 @@
 """Tools that describe a spreadsheet and add, change, copy or delete tabs.
 """
 from sheets_mcp import a1
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.formulas import refuse_url_functions
 from sheets_mcp.google import Clients, rgb_color, tab_properties
 
@@ -22,7 +21,10 @@ def describe_spreadsheet(clients: Clients, spreadsheet_id: str) -> dict:
         'title', 'url', 'locale' and 'time_zone'. 'tabs' lists each tab in
         order with its 'title', 'position' (1 is the first tab), grid
         'rows' and 'columns', 'frozen_rows', 'frozen_columns' and
-        'hidden'. 'named_ranges' lists each 'name' with its A1 'range'.
+        'hidden'. 'named_ranges' lists each 'name' with its A1 'range'. An
+        open column end, or an open row end on a range with open columns,
+        renders at the tab's current grid edge, so it does not follow the
+        grid's later growth.
 
     Examples
     --------
@@ -40,10 +42,12 @@ def describe_spreadsheet(clients: Clients, spreadsheet_id: str) -> dict:
         'sheets.properties,namedRanges').execute()
     tabs = []
     title_by_sheet_id = {}
+    grid_by_sheet_id = {}
     for sheet in reply.get('sheets', []):
         properties = sheet['properties']
         grid = properties.get('gridProperties', {})
         title_by_sheet_id[properties['sheetId']] = properties['title']
+        grid_by_sheet_id[properties['sheetId']] = grid
         tabs.append({
             'title': properties['title'],
             'position': properties['index'] + 1,
@@ -56,14 +60,26 @@ def describe_spreadsheet(clients: Clients, spreadsheet_id: str) -> dict:
     named_ranges = []
     for named in reply.get('namedRanges', []):
         bounds = named['range']
-        start_row = bounds.get('startRowIndex')
-        start_column = bounds.get('startColumnIndex')
+        # The API leaves out a zero index, so an end with no start begins
+        # at row or column 1.
+        start_row = bounds.get('startRowIndex', 0 if 'endRowIndex' in bounds else None)
+        start_column = bounds.get(
+            'startColumnIndex', 0 if 'endColumnIndex' in bounds else None)
+        sheet_id = bounds.get('sheetId', 0)
+        end_row = bounds.get('endRowIndex')
+        end_column = bounds.get('endColumnIndex')
+        # A1 has no open column end, and no open row end beside open
+        # columns ('Data'!3: reads row 3 alone), so those take the grid edge.
+        if start_column is not None and end_column is None:
+            end_column = grid_by_sheet_id[sheet_id].get('columnCount')
+        if start_row is not None and end_row is None and start_column is None:
+            end_row = grid_by_sheet_id[sheet_id].get('rowCount')
         cell_range = a1.CellRange(
-            tab=title_by_sheet_id[bounds.get('sheetId', 0)],
+            tab=title_by_sheet_id[sheet_id],
             first_row=None if start_row is None else start_row + 1,
-            last_row=bounds.get('endRowIndex'),
+            last_row=end_row,
             first_column=None if start_column is None else start_column + 1,
-            last_column=bounds.get('endColumnIndex'))
+            last_column=end_column)
         named_ranges.append({'name': named['name'], 'range': a1.to_a1(cell_range)})
     properties = reply['properties']
     return {
@@ -161,7 +177,7 @@ def edit_tab(
 
     Raises
     ------
-    SheetsError
+    ValueError
         No change was given, or no tab has that title.
 
     Examples
@@ -205,7 +221,7 @@ def edit_tab(
     if grid:
         properties['gridProperties'] = grid
     if not fields:
-        raise SheetsError('give at least one change to make')
+        raise ValueError('give at least one change to make')
     request = {'updateSheetProperties': {
         'properties': properties,
         'fields': ','.join(fields),
@@ -247,7 +263,7 @@ def copy_tab(
 
     Raises
     ------
-    SheetsError
+    ValueError
         The tab, copied into another spreadsheet, has a formula calling
         IMPORTXML, IMPORTHTML, IMPORTDATA, IMPORTFEED, IMPORTRANGE or
         IMAGE.

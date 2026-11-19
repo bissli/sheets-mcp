@@ -25,8 +25,12 @@ destructive, so a client can ask before running one.
 ## Installation
 
 ```
-pipx install git+https://github.com/bissli/sheets-mcp
+pipx install 'sheets-mcp[server] @ git+https://github.com/bissli/sheets-mcp'
 ```
+
+Without the `server` extra, the package installs as a library with no
+`mcp` dependency: every module but `sheets_mcp.server` and
+`sheets_mcp.__main__` imports.
 
 ## Credentials
 
@@ -93,7 +97,7 @@ Claude Desktop, in `claude_desktop_config.json`:
 ## Development
 
 ```
-poetry install --with test
+poetry install --with test --extras server
 poetry run pytest
 ```
 

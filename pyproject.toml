@@ -9,10 +9,14 @@ packages = [{ include = "sheets_mcp", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-mcp = "^2.3"
+mcp = { version = "^2.3", optional = true }
 google-api-python-client = "^2.150"
 google-auth = "^2.35"
 google-auth-oauthlib = "^1.2"
+pydantic = "^2.9"
+
+[tool.poetry.extras]
+server = ["mcp"]
 
 [tool.poetry.group.test]
 optional = true

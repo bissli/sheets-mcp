@@ -8,9 +8,9 @@ from typing import Any
 from google.auth.exceptions import RefreshError
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from sheets_mcp import __version__, files, layout, tabs, values
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.google import Clients
 
 READ = ToolAnnotations(read_only_hint=True)
@@ -51,8 +51,8 @@ INSTRUCTIONS = (
 
 def bind(func: Callable[..., Any], make_clients: Callable[[], Clients]) -> Callable:
     """Func as a tool: Google clients fill its first parameter, and a
-    Google API refusal, a failed sign-in or a local file error reaches the
-    caller as a SheetsError with its reason.
+    refusal, a Google API refusal, a failed sign-in or a local file error
+    reaches the caller as a ToolError with its reason.
 
     Parameters
     ----------
@@ -81,15 +81,17 @@ def bind(func: Callable[..., Any], make_clients: Callable[[], Clients]) -> Calla
     def tool(*args: Any, **kwargs: Any) -> Any:
         try:
             return func(make_clients(), *args, **kwargs)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
         except HttpError as exc:
-            raise SheetsError(
+            raise ToolError(
                 f'Google refused the call ({exc.status_code}): {exc.reason}') from exc
         except RefreshError as exc:
-            raise SheetsError(
+            raise ToolError(
                 f'Google sign-in failed: {exc}. For an OAuth client, run '
                 'sheets-mcp login again') from exc
         except OSError as exc:
-            raise SheetsError(f'local file error: {exc}') from exc
+            raise ToolError(f'local file error: {exc}') from exc
 
     tool.__doc__ = description.replace(CLIENTS_ENTRY, '')
     signature = inspect.signature(func)

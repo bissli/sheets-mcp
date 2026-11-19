@@ -6,7 +6,6 @@ from typing import Any
 
 from google.auth.credentials import Credentials
 from googleapiclient.discovery import build
-from sheets_mcp.errors import SheetsError
 
 SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 FOLDER_MIME = 'application/vnd.google-apps.folder'
@@ -54,7 +53,7 @@ def tab_properties(clients: Clients, spreadsheet_id: str, tab: str) -> dict:
 
     Raises
     ------
-    SheetsError
+    ValueError
         No tab has that title. The message lists the titles.
     """
     reply = clients.sheets.spreadsheets().get(
@@ -65,7 +64,7 @@ def tab_properties(clients: Clients, spreadsheet_id: str, tab: str) -> dict:
         for sheet in reply.get('sheets', [])
         }
     if tab not in properties_by_title:
-        raise SheetsError(
+        raise ValueError(
             f'no tab {tab!r}; the tabs are {sorted(properties_by_title)}')
     return properties_by_title[tab]
 
@@ -75,11 +74,11 @@ def rgb_color(hex_color: str) -> dict:
 
     Raises
     ------
-    SheetsError
+    ValueError
         hex_color is not '#' and six hex digits.
     """
     digits = hex_color.removeprefix('#')
     if len(digits) != 6 or any(digit not in string.hexdigits for digit in digits):
-        raise SheetsError(f'{hex_color!r} is not a color such as #1A73E8')
+        raise ValueError(f'{hex_color!r} is not a color such as #1A73E8')
     red, green, blue = (int(digits[at:at + 2], 16) / 255 for at in (0, 2, 4))
     return {'red': red, 'green': green, 'blue': blue}

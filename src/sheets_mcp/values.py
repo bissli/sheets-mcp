@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 from sheets_mcp import a1
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.formulas import refuse_url_functions
 from sheets_mcp.google import Clients, tab_properties
 
@@ -83,7 +82,7 @@ def read_range(
     if offset is not None:
         if (offset < (cell_range.first_row or 1)
             or cell_range.last_row and offset > cell_range.last_row):
-            raise SheetsError(f'offset {offset} is outside {range_a1}')
+            raise ValueError(f'offset {offset} is outside {range_a1}')
         window = replace(cell_range, first_row=offset)
     if window.first_row and window.last_row is None and window.first_column is None:
         # 'Tab!5:' is not A1, so a whole-tab read past row 1 names its

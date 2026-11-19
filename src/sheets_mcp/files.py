@@ -8,7 +8,6 @@ from typing import Literal
 
 from googleapiclient.http import MediaFileUpload
 from sheets_mcp import a1
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.google import FOLDER_MIME, SHEET_MIME, Clients
 
 FILE_FIELDS = 'id,name,mimeType,modifiedTime,webViewLink,parents'
@@ -262,7 +261,7 @@ def update_file(
 
     Raises
     ------
-    SheetsError
+    ValueError
         Neither title nor folder_id was given.
 
     Examples
@@ -273,7 +272,7 @@ def update_file(
         'parents': ['0Fld']}
     """
     if title is None and folder_id is None:
-        raise SheetsError('give a new title, a folder_id, or both')
+        raise ValueError('give a new title, a folder_id, or both')
     updated = None
     if title is not None:
         updated = clients.drive.files().update(
@@ -415,7 +414,7 @@ def share_file(
 
     Raises
     ------
-    SheetsError
+    ValueError
         Both or neither of email and anyone_with_link were given.
 
     Examples
@@ -424,7 +423,7 @@ def share_file(
     -> {'file_id': '1AbC', 'email': 'ana@example.com', 'role': 'writer'}
     """
     if bool(email) == anyone_with_link:
-        raise SheetsError('give email or anyone_with_link=true, not both')
+        raise ValueError('give email or anyone_with_link=true, not both')
     grantee = {'email': email} if email else {'anyone_with_link': True}
     permissions = all_permissions(clients, file_id)
     if email:
@@ -480,7 +479,7 @@ def import_file(
 
     Raises
     ------
-    SheetsError
+    ValueError
         The file does not exist or its extension is not one of the five.
 
     Examples
@@ -491,11 +490,11 @@ def import_file(
     """
     source = Path(path).expanduser()
     if not source.is_file():
-        raise SheetsError(f'no file at {source}')
+        raise ValueError(f'no file at {source}')
     mime = IMPORT_MIMES.get(source.suffix.lower())
     if mime is None:
-        raise SheetsError(f'{source.suffix!r} files are not imported; use one of '
-                          f'{sorted(IMPORT_MIMES)}')
+        raise ValueError(f'{source.suffix!r} files are not imported; use one of '
+                         f'{sorted(IMPORT_MIMES)}')
     body = {'name': title or source.stem, 'mimeType': SHEET_MIME}
     if folder_id:
         body['parents'] = [folder_id]
@@ -543,7 +542,7 @@ def export_spreadsheet(
 
     Raises
     ------
-    SheetsError
+    ValueError
         The file exists and overwrite is False, or csv or tsv lacks tab.
 
     Examples
@@ -554,13 +553,13 @@ def export_spreadsheet(
     """
     target = Path(path).expanduser()
     if (target.exists() or target.is_symlink()) and not overwrite:
-        raise SheetsError(f'{target} exists; pass overwrite=true to replace it')
+        raise ValueError(f'{target} exists; pass overwrite=true to replace it')
     if file_format in EXPORT_MIMES:
         content = clients.drive.files().export(
             fileId=spreadsheet_id, mimeType=EXPORT_MIMES[file_format]).execute()
     else:
         if tab is None:
-            raise SheetsError(f'{file_format} holds one tab; name it with tab')
+            raise ValueError(f'{file_format} holds one tab; name it with tab')
         reply = clients.sheets.spreadsheets().values().get(
             spreadsheetId=spreadsheet_id,
             range=a1.quote_tab(tab),

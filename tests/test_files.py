@@ -1,6 +1,5 @@
 import pytest
 from sheets_mcp import files
-from sheets_mcp.errors import SheetsError
 
 
 def test_list_files_filters_kind_name_folder_and_trash(fake, clients):
@@ -129,7 +128,7 @@ def test_share_file_needs_one_grantee(fake, clients, arguments):
     Oracle: the argument sets.
     """
     book = fake.add_spreadsheet('Budget')
-    with pytest.raises(SheetsError):
+    with pytest.raises(ValueError):
         files.share_file(clients, book, 'reader', **arguments)
 
 
@@ -156,7 +155,7 @@ def test_import_refuses_unknown_extension(clients, tmp_path):
     """
     source = tmp_path / 'notes.txt'
     source.write_text('x')
-    with pytest.raises(SheetsError, match="'.txt'"):
+    with pytest.raises(ValueError, match="'.txt'"):
         files.import_file(clients, str(source))
 
 
@@ -169,7 +168,7 @@ def test_export_refuses_overwrite_then_writes(fake, clients, tmp_path):
     book = fake.add_spreadsheet('Budget')
     target = tmp_path / 'budget.xlsx'
     target.write_bytes(b'mine')
-    with pytest.raises(SheetsError, match='overwrite'):
+    with pytest.raises(ValueError, match='overwrite'):
         files.export_spreadsheet(clients, book, str(target), 'xlsx')
     assert target.read_bytes() == b'mine'
     answer = files.export_spreadsheet(clients, book, str(target), 'xlsx', overwrite=True)

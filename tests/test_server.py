@@ -1,11 +1,17 @@
 import asyncio
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import httplib2
 import pytest
+import sheets_mcp
 from googleapiclient.errors import HttpError
-from sheets_mcp.errors import SheetsError
+from mcp.server.mcpserver.exceptions import ToolError
 from sheets_mcp.server import TOOLS, bind, build_server
+
+CORE_MODULES = ('a1', 'auth', 'files', 'formulas', 'google', 'layout', 'tabs', 'values')
 
 
 def listed_tools(read_only):
@@ -41,8 +47,8 @@ def test_read_only_serves_only_read_tools():
         'list_files', 'list_permissions', 'describe_spreadsheet', 'read_range'}
 
 
-def test_bind_turns_google_refusal_into_sheets_error():
-    """Verify a Google HttpError reaches the caller as a SheetsError that
+def test_bind_turns_google_refusal_into_tool_error():
+    """Verify a Google HttpError reaches the caller as a ToolError that
     keeps Google's status and reason.
 
     Mutation: letting HttpError through, which the SDK hides from the
@@ -61,8 +67,53 @@ def test_bind_turns_google_refusal_into_sheets_error():
         content = json.dumps({'error': {'code': 404, 'message': 'File not found'}})
         raise HttpError(httplib2.Response({'status': 404}), content.encode())
 
-    with pytest.raises(SheetsError, match=r'\(404\): File not found'):
+    with pytest.raises(ToolError, match=r'\(404\): File not found'):
         bind(refused, lambda: None)(spreadsheet_id='1AbC')
+
+
+def test_bind_turns_refusal_into_tool_error():
+    """Verify a core ValueError reaches the caller as a ToolError with the
+    same text.
+
+    Mutation: dropping the ValueError branch, which the SDK reports as a
+    crash with the text kept on the server.
+    Oracle: the message put in the stub's error.
+    """
+    def refused(clients, spreadsheet_id):
+        """Stub tool.
+
+        Parameters
+        ----------
+        clients : Clients
+            Google clients; the server passes them.
+        spreadsheet_id : str
+        """
+        raise ValueError("no tab named 'Q4'")
+
+    with pytest.raises(ToolError, match=r"^no tab named 'Q4'$"):
+        bind(refused, lambda: None)(spreadsheet_id='1AbC')
+
+
+def test_core_modules_import_no_mcp():
+    """Verify importing every core module loads no mcp module, so a host on
+    another mcp version can use the core.
+
+    Mutation: a core module importing ToolError or anything else from mcp.
+    Oracle: sys.modules in a fresh interpreter after the imports.
+    """
+    imports = '; '.join(f'import sheets_mcp.{name}' for name in CORE_MODULES)
+    check = (
+        f'import sys; {imports}; '
+        "print(sorted(m for m in sys.modules if m.split('.')[0] == 'mcp'))")
+    # Run from the source root this test imports, since another install of
+    # sheets_mcp may sit on the interpreter's path.
+    loaded = subprocess.run(
+        [sys.executable, '-c', check],
+        cwd=Path(sheets_mcp.__file__).parents[1],
+        capture_output=True,
+        text=True,
+        check=True).stdout
+    assert loaded.strip() == '[]'
 
 
 def test_bind_passes_fresh_clients_first():

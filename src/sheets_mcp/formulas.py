@@ -2,8 +2,6 @@
 """
 import re
 
-from sheets_mcp.errors import SheetsError
-
 URL_FUNCTIONS = (
     'IMPORTXML', 'IMPORTHTML', 'IMPORTDATA', 'IMPORTFEED', 'IMPORTRANGE',
     'IMAGE',
@@ -26,7 +24,7 @@ def refuse_url_functions(value: object) -> None:
 
     Raises
     ------
-    SheetsError
+    ValueError
         The formula calls IMPORTXML, IMPORTHTML, IMPORTDATA, IMPORTFEED,
         IMPORTRANGE or IMAGE, with or without a prefix such as '_xlfn.'.
         A function name inside a string literal or a quoted tab name
@@ -36,6 +34,6 @@ def refuse_url_functions(value: object) -> None:
         return
     match = URL_CALL.search(QUOTED_TEXT.sub('""', value))
     if match:
-        raise SheetsError(
+        raise ValueError(
             f'{match[1].upper()} is refused: it fetches a URL and can send '
             'cell contents to a third party. Write the data itself instead')

@@ -1,6 +1,5 @@
 import pytest
 from sheets_mcp import layout
-from sheets_mcp.errors import SheetsError
 from sheets_mcp.layout import NumberFormat
 
 
@@ -42,7 +41,7 @@ def test_move_and_resize_need_their_argument(clients, book, action, arguments):
     index.
     Oracle: the API needs both values.
     """
-    with pytest.raises(SheetsError):
+    with pytest.raises(ValueError):
         layout.edit_rows_columns(
             clients, book, 'Data', 'rows', action, start=1, **arguments)
 
@@ -116,6 +115,6 @@ def test_format_range_needs_an_option(fake, clients, book):
     Mutation: sending an empty batchUpdate.
     Oracle: no request is recorded.
     """
-    with pytest.raises(SheetsError):
+    with pytest.raises(ValueError):
         layout.format_range(clients, book, 'Data!A1')
     assert fake.requests == []

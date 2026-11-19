@@ -25,7 +25,7 @@ DEFAULT_ROWS = 1000
 DEFAULT_COLUMNS = 26
 OWNER_EMAIL = 'me@example.com'
 MODIFIED_TIME = '2024-01-01T00:00:00.000Z'
-PRIVATE_KEYS = {'tabs', 'nextSheetId'}
+PRIVATE_KEYS = {'tabs', 'nextSheetId', 'namedRanges'}
 IGNORED_KWARGS = {
     'fields',
     'supportsAllDrives',
@@ -255,7 +255,7 @@ def spreadsheet_body(spreadsheet: dict) -> dict:
             {'properties': copy.deepcopy(tab['properties'])}
             for tab in spreadsheet['tabs']
             ],
-        'namedRanges': [],
+        'namedRanges': copy.deepcopy(spreadsheet.get('namedRanges', [])),
         }
 
 
