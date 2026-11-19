@@ -56,6 +56,40 @@ def test_copy_spreadsheet_keeps_cells(fake, clients):
     assert fake.cells(copied['spreadsheet_id'], 'Data') == [['a', 1]]
 
 
+def test_copy_spreadsheet_refuses_xlsx_and_pdf(fake, clients):
+    """Verify copy_spreadsheet refuses an xlsx naming convert_file, and a
+    pdf without naming it, since convert_file refuses a pdf too.
+
+    Mutation: dropping the type check, which returns a second xlsx under
+    the key spreadsheet_id, or naming convert_file for every type.
+    Oracle: the refusal texts; no file is added.
+    """
+    xlsx = fake.new_file('prices.xlsx', files.IMPORT_MIMES['.xlsx'], None)
+    pdf = fake.new_file('report.pdf', 'application/pdf', None)
+    file_cnt = len(fake.files)
+    with pytest.raises(ValueError, match='convert_file'):
+        files.copy_spreadsheet(clients, xlsx['id'], 'prices copy')
+    with pytest.raises(ValueError, match='only a Google spreadsheet copies'):
+        files.copy_spreadsheet(clients, pdf['id'], 'report copy')
+    assert len(fake.files) == file_cnt
+
+
+def test_copy_spreadsheet_through_shortcut_copies_target(fake, clients):
+    """Verify copy_spreadsheet given a shortcut copies the spreadsheet it
+    points at.
+
+    Mutation: copying spreadsheet_id in place of the resolved source id,
+    which copies the shortcut itself.
+    Oracle: the seeded target's cells and the Sheets type on the copy.
+    """
+    book = fake.add_spreadsheet('Budget', {'Data': [['a', 1]]})
+    shortcut = fake.new_file('Budget link', files.SHORTCUT_MIME, None)
+    shortcut['shortcutDetails'] = {'targetId': book}
+    copied = files.copy_spreadsheet(clients, shortcut['id'], 'Budget copy')
+    assert fake.files[copied['spreadsheet_id']]['mimeType'] == SHEET_MIME
+    assert fake.cells(copied['spreadsheet_id'], 'Data') == [['a', 1]]
+
+
 def test_convert_file_makes_spreadsheet_beside_original(fake, clients):
     """Verify convert_file makes a spreadsheet from an xlsx in Drive, named
     without the extension and in the original's folder, and keeps the

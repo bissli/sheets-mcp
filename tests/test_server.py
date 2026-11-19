@@ -71,12 +71,19 @@ def test_bind_turns_google_refusal_into_tool_error():
         bind(refused, lambda: None)(spreadsheet_id='1AbC')
 
 
-def test_bind_points_a_non_spreadsheet_at_convert_file():
-    """Verify the Sheets refusal for a file that is not a spreadsheet
-    reaches the caller naming convert_file.
+@pytest.mark.parametrize(('status', 'message'), [
+    (400, 'This operation is not supported for this document. The document '
+          'must not be an Office file.'),
+    (403, 'Export only supports Docs Editors files.'),
+    ])
+def test_bind_points_a_non_spreadsheet_at_convert_file(status, message):
+    """Verify the Sheets and Drive export refusals for a file that is not a
+    spreadsheet reach the caller naming convert_file, with one period
+    between Google's text and the hint.
 
-    Mutation: matching the wrong reason text, or dropping the hint.
-    Oracle: the message the Sheets API gives for an xlsx file id.
+    Mutation: matching the wrong reason text, dropping either match, or
+    dropping the hint.
+    Oracle: the messages Google gave a live xlsx and csv file id.
     """
     def refused(clients, spreadsheet_id):
         """Stub tool.
@@ -87,11 +94,10 @@ def test_bind_points_a_non_spreadsheet_at_convert_file():
             Google clients; the server passes them.
         spreadsheet_id : str
         """
-        message = 'This operation is not supported for this document'
-        content = json.dumps({'error': {'code': 400, 'message': message}})
-        raise HttpError(httplib2.Response({'status': 400}), content.encode())
+        content = json.dumps({'error': {'code': status, 'message': message}})
+        raise HttpError(httplib2.Response({'status': status}), content.encode())
 
-    with pytest.raises(ToolError, match=r'document\. .*convert_file'):
+    with pytest.raises(ToolError, match=r'[a-z]\. The file .*convert_file'):
         bind(refused, lambda: None)(spreadsheet_id='1XlS')
 
 

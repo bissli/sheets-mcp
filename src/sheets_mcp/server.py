@@ -47,7 +47,13 @@ CLIENTS_ENTRY = 'clients : Clients\n    Google clients; the server passes them.\
 INSTRUCTIONS = (
     'Google Sheets and the Drive files that hold them. Find a spreadsheet '
     'with list_files and see its tabs with describe_spreadsheet before '
-    'reading or writing. Ranges are A1 text with the tab name.')
+    'reading or writing. Ranges are A1 text with the tab name. list_files '
+    'also finds csv, tsv, xlsx, xls and ods files; the other tools open '
+    'one only after convert_file makes a spreadsheet from it.')
+NOT_A_SPREADSHEET = (
+    'not supported for this document',
+    'Export only supports Docs Editors files',
+    )
 
 
 def bind(func: Callable[..., Any], make_clients: Callable[[], Clients]) -> Callable:
@@ -86,9 +92,10 @@ def bind(func: Callable[..., Any], make_clients: Callable[[], Clients]) -> Calla
             raise ToolError(str(exc)) from exc
         except HttpError as exc:
             message = f'Google refused the call ({exc.status_code}): {exc.reason}'
-            if 'not supported for this document' in str(exc.reason):
-                message += ('. The file is not a Google spreadsheet; convert_file '
-                            'makes one from a csv, tsv, xlsx, xls or ods file')
+            if any(text in str(exc.reason) for text in NOT_A_SPREADSHEET):
+                message = message.rstrip('.') + (
+                    '. The file is not a Google spreadsheet; convert_file makes '
+                    'one from a csv, tsv, xlsx, xls or ods file')
             raise ToolError(message) from exc
         except RefreshError as exc:
             raise ToolError(

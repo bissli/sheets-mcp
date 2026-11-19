@@ -302,17 +302,29 @@ def copy_spreadsheet(
     dict
         The copy's 'spreadsheet_id', 'title' and 'url'.
 
+    Raises
+    ------
+    ValueError
+        The file is not a Google spreadsheet, such as an xlsx in Drive.
+
     Examples
     --------
     copy_spreadsheet(spreadsheet_id='1AbC', title='Budget 2027')
     -> {'spreadsheet_id': '1XyZ', 'title': 'Budget 2027',
         'url': 'https://docs.google.com/...'}
     """
+    source = get_file(clients, spreadsheet_id, 'id,name')
+    if source['mimeType'] in IMPORT_MIMES.values():
+        raise ValueError(f'{source["name"]!r} is {source["mimeType"]}; '
+                         'convert_file makes a spreadsheet from it')
+    if source['mimeType'] != SHEET_MIME:
+        raise ValueError(f'{source["name"]!r} is {source["mimeType"]}; only a '
+                         'Google spreadsheet copies')
     body = {'name': title}
     if folder_id:
         body['parents'] = [folder_id]
     copied = clients.drive.files().copy(
-        fileId=spreadsheet_id, body=body, fields=FILE_FIELDS, **DRIVE_FLAGS).execute()
+        fileId=source['id'], body=body, fields=FILE_FIELDS, **DRIVE_FLAGS).execute()
     return {
         'spreadsheet_id': copied['id'],
         'title': copied['name'],
