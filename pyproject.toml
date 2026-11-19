@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sheets-mcp"
-version = "0.2.3"
+version = "0.2.4"
 description = "A general-purpose MCP server for Google Sheets."
 authors = ["bissli <bissli@xyz.org>"]
 license = "MIT"
