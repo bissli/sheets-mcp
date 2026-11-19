@@ -223,3 +223,20 @@ def test_drive_files_reads_pages_until_past_the_limit(fake, clients):
     assert sorted(file['id'] for file in every) == sorted(seeded)
     assert outside not in {file['id'] for file in every}
     assert len(files.drive_files(clients, 'drive1', query, 'id', limit=1000)) == 2000
+
+
+def test_import_bytes_becomes_spreadsheet_in_folder(fake, clients):
+    """Verify import_bytes converts in-memory csv into a spreadsheet inside
+    folder_id.
+
+    Mutation: dropping parents, which leaves the spreadsheet in root, or
+    the spreadsheet mimeType, which stores a plain csv file.
+    Oracle: a seeded folder; the fake converts only spreadsheet uploads.
+    """
+    folder = fake.add_folder('Imports')
+    imported = files.import_bytes(
+        clients, b'name,price\nacme,12\n', 'text/csv', 'prices', folder)
+    assert imported['title'] == 'prices'
+    assert fake.files[imported['spreadsheet_id']]['parents'] == [folder]
+    assert fake.cells(imported['spreadsheet_id'], 'Sheet1') == [
+        ['name', 'price'], ['acme', 12]]

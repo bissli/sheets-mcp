@@ -1,5 +1,8 @@
+from types import SimpleNamespace
+
 import pytest
 from sheets_mcp import values
+from sheets_mcp.google import Clients
 from sheets_mcp.values import RangeValues
 
 
@@ -153,3 +156,54 @@ def test_clear_ranges_clears_only_the_range(fake, clients):
     book = fake.add_spreadsheet('Book', {'Data': [['a', 'b'], ['c', 'd'], ['e', 'f']]})
     values.clear_ranges(clients, book, ['Data!A2:B2'])
     assert fake.cells(book, 'Data') == [['a', 'b'], [], ['e', 'f']]
+
+
+def test_read_blocks_keeps_range_order_and_empty_blocks(fake, clients):
+    """Verify read_blocks answers one block per range, in the order asked,
+    with [] for a range that holds nothing.
+
+    Mutation: dropping an empty block, which shifts each later block onto
+    the wrong range, or reading only the first range.
+    Oracle: hand-seeded tabs.
+    """
+    book = fake.add_spreadsheet(
+        'Book', {'Data': [['a', 1], ['b', 2]], 'Q3 Model': [['x']]})
+    blocks = values.read_blocks(
+        clients, book, ['Data!C1:C5', "'Q3 Model'!A1", 'Data!A2:B2'])
+    assert blocks == [[], [['x']], [['b', 2]]]
+
+
+def test_read_blocks_sends_options_and_ranges_unchanged():
+    """Verify read_blocks maps render and serial_dates to Google's options
+    and sends each range as given.
+
+    Mutation: ignoring serial_dates, sending FORMATTED_VALUE for 'values',
+    or quoting a bare named range as if it were a tab.
+    Oracle: a stub that records the batchGet arguments.
+    """
+    calls = []
+
+    def batch_get(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(execute=lambda: {'valueRanges': [{}]})
+
+    value_api = SimpleNamespace(batchGet=batch_get)
+    sheets = SimpleNamespace(
+        spreadsheets=lambda: SimpleNamespace(values=lambda: value_api))
+    clients = Clients(None, sheets)
+    assert values.read_blocks(clients, 'book', ['REQUEST'], serial_dates=True) == [[]]
+    values.read_blocks(clients, 'book', ['Data!A1'], render='formulas')
+    assert calls == [
+        {
+            'spreadsheetId': 'book',
+            'ranges': ['REQUEST'],
+            'valueRenderOption': 'UNFORMATTED_VALUE',
+            'dateTimeRenderOption': 'SERIAL_NUMBER',
+            },
+        {
+            'spreadsheetId': 'book',
+            'ranges': ['Data!A1'],
+            'valueRenderOption': 'FORMULA',
+            'dateTimeRenderOption': 'FORMATTED_STRING',
+            },
+        ]

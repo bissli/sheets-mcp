@@ -6,7 +6,7 @@ import io
 from pathlib import Path
 from typing import Literal
 
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
 from sheets_mcp import a1
 from sheets_mcp.google import FOLDER_MIME, SHEET_MIME, Clients
 
@@ -582,6 +582,46 @@ def import_file(
     created = clients.drive.files().create(
         body=body,
         media_body=MediaFileUpload(str(source), mimetype=mime, resumable=True),
+        fields=FILE_FIELDS,
+        **DRIVE_FLAGS).execute()
+    return {
+        'spreadsheet_id': created['id'],
+        'title': created['name'],
+        'url': created.get('webViewLink'),
+        }
+
+
+def import_bytes(
+        clients: Clients,
+        data: bytes,
+        mime_type: str,
+        title: str,
+        folder_id: str) -> dict:
+    """Upload file contents held in memory as a new spreadsheet.
+
+    Parameters
+    ----------
+    clients : Clients
+        Google clients.
+    data : bytes
+        Contents of a csv, tsv, xlsx, xls or ods file. Nothing checks
+        them before upload, so screen untrusted contents first.
+    mime_type : str
+        Type of data, a value of IMPORT_MIMES.
+    title : str
+        Name of the spreadsheet.
+    folder_id : str
+        Folder to create it in.
+
+    Returns
+    -------
+    dict
+        'spreadsheet_id', 'title' and 'url', as import_file gives.
+    """
+    upload = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime_type, resumable=True)
+    created = clients.drive.files().create(
+        body={'name': title, 'mimeType': SHEET_MIME, 'parents': [folder_id]},
+        media_body=upload,
         fields=FILE_FIELDS,
         **DRIVE_FLAGS).execute()
     return {

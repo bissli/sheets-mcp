@@ -798,6 +798,22 @@ class FakeValues:
         return rows
 
     @lazy
+    def batchGet(
+            self,
+            spreadsheetId: str,
+            ranges: list[str],
+            majorDimension: str = 'ROWS') -> dict:
+        """One get reply per range, in order. Render options are ignored.
+        """
+        return {
+            'spreadsheetId': spreadsheetId,
+            'valueRanges': [
+                self.get(spreadsheetId, text, majorDimension).execute()
+                for text in ranges
+                ],
+            }
+
+    @lazy
     def get(
             self,
             spreadsheetId: str,

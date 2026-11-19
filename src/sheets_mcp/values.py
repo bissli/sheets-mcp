@@ -112,6 +112,46 @@ def read_range(
         }
 
 
+def read_blocks(
+        clients: Clients,
+        spreadsheet_id: str,
+        ranges: list[str],
+        render: Render = 'values',
+        serial_dates: bool = False) -> list[list[list]]:
+    """Every row of each range, read in one call with no page cut.
+
+    Parameters
+    ----------
+    clients : Clients
+        Google clients.
+    spreadsheet_id : str
+        Spreadsheet id.
+    ranges : list of str
+        A1 ranges or named ranges, sent to Google unchanged, so a tab
+        title with a space needs its quotes: "'Q3 Model'!A1:F40". Google
+        fails the whole call when any range does not parse.
+    render : {'values', 'formatted', 'formulas'}, default 'values'
+        As in read_range.
+    serial_dates : bool, default False
+        Give a date or time as its serial number, such as 46000.5. False
+        gives it as the text the Sheets UI shows. Ignored for 'formatted'.
+
+    Returns
+    -------
+    list of list of list
+        One list of rows per range, in the order of ranges; [] for a range
+        with no values. An empty cell before a value is '', and a row's
+        trailing empty cells are left out.
+    """
+    date_option = 'SERIAL_NUMBER' if serial_dates else 'FORMATTED_STRING'
+    reply = clients.sheets.spreadsheets().values().batchGet(
+        spreadsheetId=spreadsheet_id,
+        ranges=ranges,
+        valueRenderOption=RENDER_OPTIONS[render],
+        dateTimeRenderOption=date_option).execute()
+    return [block.get('values', []) for block in reply.get('valueRanges', [])]
+
+
 def write_ranges(
         clients: Clients,
         spreadsheet_id: str,

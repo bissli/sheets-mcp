@@ -211,3 +211,26 @@ def test_built_requests_name_a_tab_added_in_the_same_batch(fake, clients):
     properties = fake.files[book]['tabs'][0]['properties']
     assert properties['sheetId'] == 7
     assert properties['gridProperties']['frozenRowCount'] == 2
+
+
+def test_add_tab_request_hides_only_when_asked(fake, clients):
+    """Verify add_tab_request with hidden=True adds a hidden tab, and one
+    without it stays visible.
+
+    Mutation: dropping the hidden key from the request, or setting it on
+    every tab.
+    Oracle: the fake stores hidden as the request sends it.
+    """
+    book = fake.add_spreadsheet('Book')
+    requests = [
+        tabs.add_tab_request('Scratch', hidden=True),
+        tabs.add_tab_request('Shown'),
+        ]
+    clients.sheets.spreadsheets().batchUpdate(
+        spreadsheetId=book, body={'requests': requests}).execute()
+    hidden_by_title = {
+        tab['properties']['title']: tab['properties']['hidden']
+        for tab in fake.files[book]['tabs']
+        }
+    assert hidden_by_title['Scratch'] is True
+    assert hidden_by_title['Shown'] is False

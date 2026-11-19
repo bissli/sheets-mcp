@@ -136,7 +136,8 @@ def add_tab_request(
         position: int | None = None,
         rows: int = 1000,
         columns: int = 26,
-        sheet_id: int | None = None) -> dict:
+        sheet_id: int | None = None,
+        hidden: bool = False) -> dict:
     """Sheets API addSheet request, for a caller that sends it in its own
     batchUpdate.
 
@@ -151,6 +152,9 @@ def add_tab_request(
         Grid id for the new tab, so later requests in the same batch can
         name it. Omitted, Sheets picks one. Sheets refuses an id another
         tab has.
+    hidden : bool, default False
+        Hide the tab from the tab bar. Anyone who can edit the
+        spreadsheet can still unhide and read it.
 
     Returns
     -------
@@ -164,6 +168,8 @@ def add_tab_request(
         properties['index'] = position - 1
     if sheet_id is not None:
         properties['sheetId'] = sheet_id
+    if hidden:
+        properties['hidden'] = True
     return {'addSheet': {'properties': properties}}
 
 
