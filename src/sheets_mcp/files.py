@@ -21,6 +21,7 @@ IMPORT_MIMES = {
     '.xls': 'application/vnd.ms-excel',
     '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
     }
+KIND_BY_MIME.update({mime: ext[1:] for ext, mime in IMPORT_MIMES.items()})
 EXPORT_MIMES = {
     'xlsx': IMPORT_MIMES['.xlsx'],
     'ods': IMPORT_MIMES['.ods'],
@@ -178,6 +179,8 @@ def list_files(
     folder_id : str, optional
         Keep files directly inside this folder.
     kind : {'spreadsheets', 'folders', 'all'}, default 'all'
+        'all' also finds csv, tsv, xlsx, xls and ods files, whose kind is
+        their extension. Only convert_file opens one of those.
     page_token : str, optional
         next_page_token from the previous page. Omit it for the first.
 
@@ -200,7 +203,7 @@ def list_files(
     mimes = {
         'spreadsheets': [SHEET_MIME],
         'folders': [FOLDER_MIME],
-        'all': [SHEET_MIME, FOLDER_MIME],
+        'all': [SHEET_MIME, FOLDER_MIME, *IMPORT_MIMES.values()],
         }[kind]
     mime_terms = ' or '.join(f'mimeType = {quote_query(mime)}' for mime in mimes)
     terms = ['trashed = false', f'({mime_terms})']
@@ -314,6 +317,66 @@ def copy_spreadsheet(
         'spreadsheet_id': copied['id'],
         'title': copied['name'],
         'url': copied.get('webViewLink'),
+        }
+
+
+def convert_file(
+        clients: Clients,
+        file_id: str,
+        title: str | None = None,
+        folder_id: str | None = None) -> dict:
+    """Copy a csv, tsv, xlsx, xls or ods file in Drive into a new
+    spreadsheet. The original file stays as it is.
+
+    Parameters
+    ----------
+    clients : Clients
+        Google clients; the server passes them.
+    file_id : str
+        Drive id of the file to convert.
+    title : str, optional
+        Name of the spreadsheet. Omitted, the file name without its
+        extension.
+    folder_id : str, optional
+        Folder for the spreadsheet. Omitted, it goes in the original's
+        folder when the account can see that folder, else in My Drive.
+
+    Returns
+    -------
+    dict
+        'spreadsheet_id', 'title' and 'url'.
+
+    Raises
+    ------
+    ValueError
+        The file is already a spreadsheet, or is not one of the five types.
+
+    Examples
+    --------
+    convert_file(file_id='1XlS')
+    -> {'spreadsheet_id': '1AbC', 'title': 'prices',
+        'url': 'https://docs.google.com/...'}
+    """
+    source = get_file(clients, file_id, 'id,name')
+    if source['mimeType'] == SHEET_MIME:
+        raise ValueError(f'{source["name"]!r} is already a spreadsheet')
+    if source['mimeType'] not in IMPORT_MIMES.values():
+        raise ValueError(f'{source["name"]!r} is {source["mimeType"]}; only '
+                         f'{sorted(IMPORT_MIMES)} files convert')
+    name = source['name']
+    suffix = Path(name).suffix
+    if suffix.lower() in IMPORT_MIMES:
+        name = name[:-len(suffix)]
+    body = {'name': title or name, 'mimeType': SHEET_MIME}
+    if folder_id:
+        body['parents'] = [folder_id]
+    converted = clients.drive.files().copy(
+        fileId=source['id'], body=body, fields=FILE_FIELDS,
+        **DRIVE_FLAGS).execute()
+    return {
+        'spreadsheet_id': converted['id'],
+        'title': converted['name'],
+        'url': converted.get('webViewLink'),
         }
 
 

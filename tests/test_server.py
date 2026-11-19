@@ -71,6 +71,30 @@ def test_bind_turns_google_refusal_into_tool_error():
         bind(refused, lambda: None)(spreadsheet_id='1AbC')
 
 
+def test_bind_points_a_non_spreadsheet_at_convert_file():
+    """Verify the Sheets refusal for a file that is not a spreadsheet
+    reaches the caller naming convert_file.
+
+    Mutation: matching the wrong reason text, or dropping the hint.
+    Oracle: the message the Sheets API gives for an xlsx file id.
+    """
+    def refused(clients, spreadsheet_id):
+        """Stub tool.
+
+        Parameters
+        ----------
+        clients : Clients
+            Google clients; the server passes them.
+        spreadsheet_id : str
+        """
+        message = 'This operation is not supported for this document'
+        content = json.dumps({'error': {'code': 400, 'message': message}})
+        raise HttpError(httplib2.Response({'status': 400}), content.encode())
+
+    with pytest.raises(ToolError, match=r'document\. .*convert_file'):
+        bind(refused, lambda: None)(spreadsheet_id='1XlS')
+
+
 def test_bind_turns_refusal_into_tool_error():
     """Verify a core ValueError reaches the caller as a ToolError with the
     same text.

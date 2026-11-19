@@ -21,6 +21,7 @@ TOOLS = (
     (files.list_files, READ),
     (files.create_spreadsheet, ADD),
     (files.copy_spreadsheet, ADD),
+    (files.convert_file, ADD),
     (files.update_file, CHANGE),
     (files.delete_file, CHANGE),
     (files.create_folder, ADD),
@@ -84,8 +85,11 @@ def bind(func: Callable[..., Any], make_clients: Callable[[], Clients]) -> Calla
         except ValueError as exc:
             raise ToolError(str(exc)) from exc
         except HttpError as exc:
-            raise ToolError(
-                f'Google refused the call ({exc.status_code}): {exc.reason}') from exc
+            message = f'Google refused the call ({exc.status_code}): {exc.reason}'
+            if 'not supported for this document' in str(exc.reason):
+                message += ('. The file is not a Google spreadsheet; convert_file '
+                            'makes one from a csv, tsv, xlsx, xls or ods file')
+            raise ToolError(message) from exc
         except RefreshError as exc:
             raise ToolError(
                 f'Google sign-in failed: {exc}. For an OAuth client, run '

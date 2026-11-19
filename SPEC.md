@@ -14,7 +14,7 @@ v1 tools, grouped by the object they act on:
 | -------------- | ----------------------------------------------------------------------------------------------------- |
 | Files          | `list_files`, `create_spreadsheet`, `copy_spreadsheet`, `update_file`, `delete_file`, `create_folder` |
 | Sharing        | `share_file`, `list_permissions`                                                                      |
-| Import, export | `import_file`, `export_spreadsheet`                                                                   |
+| Import, export | `import_file`, `convert_file`, `export_spreadsheet`                                                   |
 | Tabs           | `describe_spreadsheet`, `add_tab`, `edit_tab`, `copy_tab`, `delete_tab`                               |
 | Values         | `read_range`, `write_ranges`, `append_rows`, `clear_ranges`                                           |
 | Rows, columns  | `edit_rows_columns`, `delete_rows_columns`                                                            |

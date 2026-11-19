@@ -2,9 +2,10 @@
 
 A general-purpose [MCP](https://modelcontextprotocol.io) server for Google
 Sheets. It lets an MCP client such as Claude find, create, copy, move,
-share, import, export and delete spreadsheets; add, edit, copy and delete
-tabs; read, write, append and clear values; insert, move, resize and delete
-rows and columns; and format cells.
+share, import, convert, export and delete spreadsheets; add, edit, copy and
+delete tabs; read, write, append and clear values; insert, move, resize and
+delete rows and columns; and format cells. An Excel, csv or ods file already
+in Drive converts to a new spreadsheet.
 
 ## Tools
 
@@ -12,7 +13,7 @@ rows and columns; and format cells.
 | -------------- | ----------------------------------------------------------------------------------------------------- |
 | Files          | `list_files`, `create_spreadsheet`, `copy_spreadsheet`, `update_file`, `delete_file`, `create_folder` |
 | Sharing        | `share_file`, `list_permissions`                                                                      |
-| Import, export | `import_file`, `export_spreadsheet`                                                                   |
+| Import, export | `import_file`, `convert_file`, `export_spreadsheet`                                                   |
 | Tabs           | `describe_spreadsheet`, `add_tab`, `edit_tab`, `copy_tab`, `delete_tab`                               |
 | Values         | `read_range`, `write_ranges`, `append_rows`, `clear_ranges`                                           |
 | Rows, columns  | `edit_rows_columns`, `delete_rows_columns`                                                            |

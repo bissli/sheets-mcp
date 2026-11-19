@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from sheets_mcp import files
-from sheets_mcp.google import Clients
+from sheets_mcp.google import SHEET_MIME, Clients
 
 
 def test_list_files_filters_kind_name_folder_and_trash(fake, clients):
@@ -54,6 +54,60 @@ def test_copy_spreadsheet_keeps_cells(fake, clients):
     copied = files.copy_spreadsheet(clients, book, 'Budget 2027')
     assert copied['spreadsheet_id'] != book
     assert fake.cells(copied['spreadsheet_id'], 'Data') == [['a', 1]]
+
+
+def test_convert_file_makes_spreadsheet_beside_original(fake, clients):
+    """Verify convert_file makes a spreadsheet from an xlsx in Drive, named
+    without the extension and in the original's folder, and keeps the
+    original.
+
+    Mutation: leaving mimeType out of the copy body, which makes a second
+    xlsx, naming the copy with the '.xlsx' still on, or cutting a dot
+    that starts no known extension.
+    Oracle: the fake's stored type, name, parents and file table.
+    """
+    reports = fake.add_folder('Reports')
+    xlsx = fake.new_file('prices.xlsx', files.IMPORT_MIMES['.xlsx'], [reports])
+    answer = files.convert_file(clients, xlsx['id'])
+    stored = fake.files[answer['spreadsheet_id']]
+    assert (stored['mimeType'], stored['importedFrom']) == (
+        SHEET_MIME, files.IMPORT_MIMES['.xlsx'])
+    assert (answer['title'], stored['parents']) == ('prices', [reports])
+    assert fake.files[xlsx['id']]['mimeType'] == files.IMPORT_MIMES['.xlsx']
+    csv_file = fake.new_file('Budget v1.2', files.IMPORT_MIMES['.csv'], None)
+    assert files.convert_file(clients, csv_file['id'])['title'] == 'Budget v1.2'
+
+
+def test_convert_file_refuses_spreadsheet_and_other_types(fake, clients):
+    """Verify convert_file refuses a file that is already a spreadsheet and
+    one of a type Sheets cannot convert.
+
+    Mutation: dropping either type check, which copies a spreadsheet
+    silently or asks Drive to convert a pdf.
+    Oracle: the refusal text names each case; no file is added.
+    """
+    book = fake.add_spreadsheet('Budget')
+    pdf = fake.new_file('report.pdf', 'application/pdf', None)
+    file_cnt = len(fake.files)
+    with pytest.raises(ValueError, match='already a spreadsheet'):
+        files.convert_file(clients, book)
+    with pytest.raises(ValueError, match='application/pdf'):
+        files.convert_file(clients, pdf['id'])
+    assert len(fake.files) == file_cnt
+
+
+def test_list_files_all_finds_convertible_files(fake, clients):
+    """Verify kind 'all' lists an xlsx with kind 'xlsx', and kind
+    'spreadsheets' leaves it out.
+
+    Mutation: leaving the import types out of 'all', so an Excel file in
+    Drive cannot be found to convert.
+    Oracle: seeded files.
+    """
+    xlsx = fake.new_file('prices.xlsx', files.IMPORT_MIMES['.xlsx'], None)
+    found = files.list_files(clients, kind='all')['files']
+    assert [(file['id'], file['kind']) for file in found] == [(xlsx['id'], 'xlsx')]
+    assert files.list_files(clients, kind='spreadsheets')['files'] == []
 
 
 def test_update_file_renames_and_moves(fake, clients):

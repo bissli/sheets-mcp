@@ -1050,13 +1050,19 @@ class FakeFiles:
     @lazy
     def copy(self, fileId: str, body: dict) -> dict:
         """Copy a file and its tabs. Parents default to the source's.
+
+        A spreadsheet mimeType on a source of another type converts it to
+        one empty tab, with the source type stored as 'importedFrom'.
         """
         source = self.fake.file(fileId)
+        mime_type = body.get('mimeType', source['mimeType'])
         clone = self.fake.new_file(
             body.get('name', f"Copy of {source['name']}"),
-            source['mimeType'],
+            mime_type,
             body.get('parents', source['parents']))
-        if 'tabs' in source:
+        if mime_type != source['mimeType']:
+            clone['importedFrom'] = source['mimeType']
+        elif 'tabs' in source:
             clone['tabs'] = copy.deepcopy(source['tabs'])
             clone['nextSheetId'] = source['nextSheetId']
         return public(clone)
