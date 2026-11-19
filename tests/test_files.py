@@ -202,3 +202,24 @@ def test_get_file_follows_a_shortcut_to_its_target(fake, clients):
     shortcut['shortcutDetails'] = {'targetId': folder}
     assert files.get_file(clients, shortcut['id'])['id'] == folder
     assert files.get_file(clients, folder)['name'] == 'Reports'
+
+
+def test_drive_files_reads_pages_until_past_the_limit(fake, clients):
+    """Verify drive_files keeps one drive's matches, reads every 1000-file
+    page, and stops after the page that takes it past limit.
+
+    Mutation: dropping driveId, stopping after the first page, or '>='
+    in place of '>' for the limit.
+    Oracle: 2001 seeded folders in the drive read as two pages of 1000
+    under limit=1000, and three pages with no limit; one folder outside
+    the drive never appears.
+    """
+    seeded = [fake.add_folder(f'f{index}') for index in range(2001)]
+    for folder in seeded:
+        fake.files[folder]['driveId'] = 'drive1'
+    outside = fake.add_folder('elsewhere')
+    query = 'trashed = false'
+    every = files.drive_files(clients, 'drive1', query, 'id')
+    assert sorted(file['id'] for file in every) == sorted(seeded)
+    assert outside not in {file['id'] for file in every}
+    assert len(files.drive_files(clients, 'drive1', query, 'id', limit=1000)) == 2000

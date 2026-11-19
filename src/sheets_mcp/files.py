@@ -99,6 +99,53 @@ def get_file(clients: Clients, file_id: str, fields: str = FILE_FIELDS) -> dict:
     return file
 
 
+def drive_files(
+        clients: Clients,
+        drive_id: str,
+        query: str,
+        fields: str,
+        limit: int | None = None) -> list[dict]:
+    """Every file of one shared drive that matches a Drive search query.
+
+    Parameters
+    ----------
+    clients : Clients
+        Google clients.
+    drive_id : str
+        Shared drive id.
+    query : str
+        Drive v3 q string, such as "trashed = false". Untrashed is not
+        implied.
+    fields : str
+        Field mask of each file, placed inside files(...).
+    limit : int, optional
+        Stop reading pages once more than limit files are held, so the
+        answer holds more than limit files and may miss some matches. None
+        reads every page.
+
+    Returns
+    -------
+    list of dict
+        The masked fields of each match, in no set order.
+    """
+    found = []
+    page_token = None
+    while True:
+        reply = clients.drive.files().list(
+            corpora='drive',
+            driveId=drive_id,
+            includeItemsFromAllDrives=True,
+            q=query,
+            fields=f'nextPageToken,files({fields})',
+            pageSize=1000,
+            pageToken=page_token,
+            **DRIVE_FLAGS).execute()
+        found += reply.get('files', [])
+        page_token = reply.get('nextPageToken')
+        if not page_token or (limit is not None and len(found) > limit):
+            return found
+
+
 def move_to_folder(clients: Clients, file_id: str, folder_id: str) -> dict:
     """Move a Drive file into folder_id, out of every folder it was in.
     Returns the moved file.

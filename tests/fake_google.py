@@ -938,17 +938,20 @@ class FakeFiles:
             self,
             q: str | None = None,
             pageSize: int = 100,
-            pageToken: str | None = None) -> dict:
+            pageToken: str | None = None,
+            driveId: str | None = None) -> dict:
         """Files matching q, in creation order, one page at a time.
 
         pageToken is the start index as text. A q term outside the grammar
-        raises ValueError.
+        raises ValueError. driveId keeps only files whose 'driveId' key a
+        test set to it.
         """
         terms = split_top_level(q, 'and') if q else []
         matchers = [term_matcher(term) for term in terms]
         matching = [
             public(file) for file in self.fake.files.values()
             if all(match(file) for match in matchers)
+            and (driveId is None or file.get('driveId') == driveId)
             ]
         start = int(pageToken or 0)
         reply: dict[str, Any] = {'files': matching[start:start + pageSize]}
