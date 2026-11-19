@@ -188,3 +188,17 @@ def test_export_csv_writes_one_tab(fake, clients, tmp_path):
     target = tmp_path / 'data.csv'
     files.export_spreadsheet(clients, book, str(target), 'csv', tab='Data')
     assert target.read_text() == 'name,note\nacme,"a,b"\n'
+
+
+def test_get_file_follows_a_shortcut_to_its_target(fake, clients):
+    """Verify get_file answers a shortcut's target and a plain file as is.
+
+    Mutation: answering the shortcut itself, or reading its own id in
+    place of shortcutDetails.targetId.
+    Oracle: a seeded folder and a shortcut to it.
+    """
+    folder = fake.add_folder('Reports')
+    shortcut = fake.new_file('Reports link', files.SHORTCUT_MIME, None)
+    shortcut['shortcutDetails'] = {'targetId': folder}
+    assert files.get_file(clients, shortcut['id'])['id'] == folder
+    assert files.get_file(clients, folder)['name'] == 'Reports'

@@ -12,6 +12,7 @@ from sheets_mcp.google import FOLDER_MIME, SHEET_MIME, Clients
 
 FILE_FIELDS = 'id,name,mimeType,modifiedTime,webViewLink,parents'
 PAGE_SIZE = 100
+SHORTCUT_MIME = 'application/vnd.google-apps.shortcut'
 KIND_BY_MIME = {SHEET_MIME: 'spreadsheet', FOLDER_MIME: 'folder'}
 IMPORT_MIMES = {
     '.csv': 'text/csv',
@@ -63,6 +64,39 @@ def quote_query(text: str) -> str:
     """Text as a Drive query string literal.
     """
     return "'" + text.replace('\\', '\\\\').replace("'", "\\'") + "'"
+
+
+def get_file(clients: Clients, file_id: str, fields: str = FILE_FIELDS) -> dict:
+    """A Drive file's metadata, or its target's when file_id is a shortcut.
+
+    Parameters
+    ----------
+    clients : Clients
+        Google clients.
+    file_id : str
+        File, folder or shortcut id.
+    fields : str, default FILE_FIELDS
+        Drive v3 field mask of the file. mimeType and shortcutDetails are
+        always added, so the answer may hold them beyond the mask.
+
+    Returns
+    -------
+    dict
+        The masked fields of the file, or of the shortcut's target.
+
+    Raises
+    ------
+    HttpError
+        404 when the account cannot open the file or the target.
+    """
+    mask = f'{fields},mimeType,shortcutDetails'
+    file = clients.drive.files().get(
+        fileId=file_id, fields=mask, **DRIVE_FLAGS).execute()
+    if file['mimeType'] == SHORTCUT_MIME:
+        file = clients.drive.files().get(
+            fileId=file['shortcutDetails']['targetId'], fields=mask,
+            **DRIVE_FLAGS).execute()
+    return file
 
 
 def move_to_folder(clients: Clients, file_id: str, folder_id: str) -> dict:
