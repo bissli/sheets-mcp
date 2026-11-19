@@ -120,14 +120,16 @@ def test_write_ranges_refuses_url_formula_and_writes_nothing(fake, clients):
 
 
 def test_append_rows_lands_below_last_data_row(fake, clients):
-    """Verify appended rows start below the last row with data, in column A.
+    """Verify appended rows start below the last row with data, in column A,
+    and the answer counts the rows written.
 
-    Mutation: writing at the tab's first row, or at the grid's last row.
-    Oracle: a two-row table, so the new row is row 3.
+    Mutation: writing at the tab's first row, or at the grid's last row;
+      updated_rows dropped from the answer.
+    Oracle: a two-row table, so the new row is row 3, and one row sent.
     """
     book = fake.add_spreadsheet('Book', {'Log': [['day', 'n'], ['mon', 1]]})
     answer = values.append_rows(clients, book, 'Log', [['tue', '2']])
-    assert answer == {'updated_range': "'Log'!A3:B3"}
+    assert answer == {'updated_range': "'Log'!A3:B3", 'updated_rows': 1}
     assert fake.cells(book, 'Log') == [['day', 'n'], ['mon', 1], ['tue', 2]]
 
 

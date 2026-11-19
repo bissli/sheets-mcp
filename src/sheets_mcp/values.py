@@ -198,12 +198,13 @@ def append_rows(
     Returns
     -------
     dict
-        'updated_range' is the A1 range the new rows fill.
+        'updated_range' is the A1 range the new rows fill, and
+        'updated_rows' the count of rows Sheets wrote.
 
     Examples
     --------
     append_rows(spreadsheet_id='1AbC', tab='Log', rows=[['2026-11-18', 4]])
-    -> {'updated_range': 'Log!A42:B42'}
+    -> {'updated_range': 'Log!A42:B42', 'updated_rows': 1}
     """
     if parse:
         for row in rows:
@@ -215,7 +216,11 @@ def append_rows(
         valueInputOption='USER_ENTERED' if parse else 'RAW',
         insertDataOption='INSERT_ROWS',
         body={'values': rows}).execute()
-    return {'updated_range': reply['updates']['updatedRange']}
+    updates = reply['updates']
+    return {
+        'updated_range': updates['updatedRange'],
+        'updated_rows': updates.get('updatedRows', 0),
+        }
 
 
 def clear_ranges(clients: Clients, spreadsheet_id: str, ranges: list[str]) -> dict:

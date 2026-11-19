@@ -188,3 +188,26 @@ def test_copy_tab_across_refuses_url_formula(fake, clients):
     with pytest.raises(ValueError, match='IMPORTXML'):
         tabs.copy_tab(clients, source, 'T', target)
     assert tab_titles(fake, target) == ['Sheet1']
+
+
+def test_built_requests_name_a_tab_added_in_the_same_batch(fake, clients):
+    """Verify add_tab_request's sheet_id lets later requests in one
+    batchUpdate freeze and move the tab it adds.
+
+    Mutation: sheet_id left out of the addSheet properties, so Sheets picks
+      another id and the later requests miss the tab; or tab_update_request
+      computing the index without the current index it is given.
+    Oracle: tab order and frozen rows after one hand-built batch.
+    """
+    book = fake.add_spreadsheet('Book', {'Data': [], 'Notes': []})
+    added = {'sheetId': 7, 'index': 2}
+    freeze, _ = tabs.tab_update_request(added, frozen_rows=2)
+    move, changed = tabs.tab_update_request(added, position=1)
+    requests = [tabs.add_tab_request('New', sheet_id=7), freeze, move]
+    clients.sheets.spreadsheets().batchUpdate(
+        spreadsheetId=book, body={'requests': requests}).execute()
+    assert changed == ['position']
+    assert tab_titles(fake, book) == ['New', 'Data', 'Notes']
+    properties = fake.files[book]['tabs'][0]['properties']
+    assert properties['sheetId'] == 7
+    assert properties['gridProperties']['frozenRowCount'] == 2

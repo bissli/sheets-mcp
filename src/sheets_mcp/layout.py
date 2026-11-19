@@ -47,6 +47,18 @@ def dimension_range(
         }
 
 
+def insert_request(
+        sheet_id: int, dimension: Dimension, start: int, count: int) -> dict:
+    """Sheets API request that inserts count empty rows or columns, the first
+    taking number start, counted from 1. New rows or columns past the first
+    take the format of the one before them.
+    """
+    return {'insertDimension': {
+        'range': dimension_range(sheet_id, dimension, start, count),
+        'inheritFromBefore': start > 1,
+        }}
+
+
 def edit_rows_columns(
         clients: Clients,
         spreadsheet_id: str,
@@ -106,7 +118,7 @@ def edit_rows_columns(
     sheet_id = tab_properties(clients, spreadsheet_id, tab)['sheetId']
     span = dimension_range(sheet_id, dimension, start, count)
     if action == 'insert':
-        request = {'insertDimension': {'range': span, 'inheritFromBefore': start > 1}}
+        request = insert_request(sheet_id, dimension, start, count)
     elif action == 'move':
         if destination is None or destination < 1:
             raise ValueError("'move' needs destination, counted from 1")
@@ -186,6 +198,105 @@ def delete_rows_columns(
     return {'dimension': dimension, 'start': start, 'count': count}
 
 
+def format_requests(
+        grid: dict,
+        number_format: NumberFormat | None = None,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
+        strikethrough: bool | None = None,
+        font_size: int | None = None,
+        font_family: str | None = None,
+        text_color: str | None = None,
+        background_color: str | None = None,
+        horizontal_alignment: Literal['left', 'center', 'right'] | None = None,
+        vertical_alignment: Literal['top', 'middle', 'bottom'] | None = None,
+        wrap: Literal['overflow', 'clip', 'wrap'] | None = None,
+        borders: Literal['all', 'outer', 'inner', 'none'] | None = None,
+        merge: Literal['all', 'rows', 'columns', 'none'] | None = None) -> list[dict]:
+    """Sheets API requests that format the cells of grid, for a caller that
+    sends them in its own batchUpdate.
+
+    Parameters
+    ----------
+    grid : dict
+        Sheets API GridRange, as a1.grid_range builds it.
+    number_format : NumberFormat, optional
+    bold, italic, underline, strikethrough : bool, optional
+    font_size : int, optional
+        Points.
+    font_family : str, optional
+    text_color, background_color : str, optional
+        '#RRGGBB'.
+    horizontal_alignment : {'left', 'center', 'right'}, optional
+    vertical_alignment : {'top', 'middle', 'bottom'}, optional
+    wrap : {'overflow', 'clip', 'wrap'}, optional
+    borders : {'all', 'outer', 'inner', 'none'}, optional
+    merge : {'all', 'rows', 'columns', 'none'}, optional
+        Each option means what it means to format_range.
+
+    Returns
+    -------
+    list[dict]
+        A repeatCell request for the cell formats, then updateBorders, then
+        mergeCells or unmergeCells, each only when its options are given.
+        Empty when no option is given.
+
+    Raises
+    ------
+    ValueError
+        A color is not '#RRGGBB'.
+    """
+    text_style = {
+        'bold': bold,
+        'italic': italic,
+        'underline': underline,
+        'strikethrough': strikethrough,
+        'fontSize': font_size,
+        'fontFamily': font_family,
+        }
+    text_format = {key: value for key, value in text_style.items() if value is not None}
+    if text_color is not None:
+        text_format['foregroundColorStyle'] = {'rgbColor': rgb_color(text_color)}
+    cell_format = {}
+    if text_format:
+        cell_format['textFormat'] = text_format
+    if number_format is not None:
+        cell_format['numberFormat'] = number_format.model_dump()
+    if background_color is not None:
+        cell_format['backgroundColorStyle'] = {'rgbColor': rgb_color(background_color)}
+    if horizontal_alignment is not None:
+        cell_format['horizontalAlignment'] = horizontal_alignment.upper()
+    if vertical_alignment is not None:
+        cell_format['verticalAlignment'] = vertical_alignment.upper()
+    if wrap is not None:
+        cell_format['wrapStrategy'] = WRAP_STRATEGIES[wrap]
+    requests = []
+    if cell_format:
+        fields = [f'userEnteredFormat.textFormat.{key}' for key in text_format]
+        fields += [
+            f'userEnteredFormat.{key}' for key in cell_format if key != 'textFormat'
+            ]
+        requests.append({'repeatCell': {
+            'range': grid,
+            'cell': {'userEnteredFormat': cell_format},
+            'fields': ','.join(fields),
+            }})
+    if borders is not None:
+        style = {'style': 'NONE'} if borders == 'none' else {
+            'style': 'SOLID',
+            'colorStyle': {'rgbColor': rgb_color('#000000')},
+            }
+        sides = dict.fromkeys(BORDER_SIDES[borders], style)
+        requests.append({'updateBorders': {'range': grid, **sides}})
+    if merge == 'none':
+        requests.append({'unmergeCells': {'range': grid}})
+    elif merge is not None:
+        merge_type = MERGE_TYPES[merge]
+        requests.append({'mergeCells': {'range': grid, 'mergeType': merge_type}})
+    return requests
+
+
 def format_range(
         clients: Clients,
         spreadsheet_id: str,
@@ -260,54 +371,22 @@ def format_range(
     """
     cell_range = a1.parse_range(range_a1)
     sheet_id = tab_properties(clients, spreadsheet_id, cell_range.tab)['sheetId']
-    grid = a1.grid_range(cell_range, sheet_id)
-    text_style = {
-        'bold': bold,
-        'italic': italic,
-        'underline': underline,
-        'strikethrough': strikethrough,
-        'fontSize': font_size,
-        'fontFamily': font_family,
-        }
-    text_format = {key: value for key, value in text_style.items() if value is not None}
-    if text_color is not None:
-        text_format['foregroundColorStyle'] = {'rgbColor': rgb_color(text_color)}
-    cell_format = {}
-    if text_format:
-        cell_format['textFormat'] = text_format
-    if number_format is not None:
-        cell_format['numberFormat'] = number_format.model_dump()
-    if background_color is not None:
-        cell_format['backgroundColorStyle'] = {'rgbColor': rgb_color(background_color)}
-    if horizontal_alignment is not None:
-        cell_format['horizontalAlignment'] = horizontal_alignment.upper()
-    if vertical_alignment is not None:
-        cell_format['verticalAlignment'] = vertical_alignment.upper()
-    if wrap is not None:
-        cell_format['wrapStrategy'] = WRAP_STRATEGIES[wrap]
-    requests = []
-    if cell_format:
-        fields = [f'userEnteredFormat.textFormat.{key}' for key in text_format]
-        fields += [
-            f'userEnteredFormat.{key}' for key in cell_format if key != 'textFormat'
-            ]
-        requests.append({'repeatCell': {
-            'range': grid,
-            'cell': {'userEnteredFormat': cell_format},
-            'fields': ','.join(fields),
-            }})
-    if borders is not None:
-        style = {'style': 'NONE'} if borders == 'none' else {
-            'style': 'SOLID',
-            'colorStyle': {'rgbColor': rgb_color('#000000')},
-            }
-        sides = dict.fromkeys(BORDER_SIDES[borders], style)
-        requests.append({'updateBorders': {'range': grid, **sides}})
-    if merge == 'none':
-        requests.append({'unmergeCells': {'range': grid}})
-    elif merge is not None:
-        merge_type = MERGE_TYPES[merge]
-        requests.append({'mergeCells': {'range': grid, 'mergeType': merge_type}})
+    requests = format_requests(
+        a1.grid_range(cell_range, sheet_id),
+        number_format=number_format,
+        bold=bold,
+        italic=italic,
+        underline=underline,
+        strikethrough=strikethrough,
+        font_size=font_size,
+        font_family=font_family,
+        text_color=text_color,
+        background_color=background_color,
+        horizontal_alignment=horizontal_alignment,
+        vertical_alignment=vertical_alignment,
+        wrap=wrap,
+        borders=borders,
+        merge=merge)
     if not requests:
         raise ValueError('give at least one format option')
     clients.sheets.spreadsheets().batchUpdate(

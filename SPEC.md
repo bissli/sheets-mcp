@@ -81,6 +81,11 @@ program can use them as a library. They raise `ValueError` with text meant
 for the caller and let Google's `HttpError` pass. `server` turns both into
 a `ToolError`.
 
+`tabs.add_tab_request`, `tabs.tab_update_request`, `layout.insert_request`
+and `layout.format_requests` build a tool's requests without sending them.
+A library caller joins them into one `batchUpdate`, which Sheets applies
+whole or not at all.
+
 The Google API client is not thread-safe, and the MCP SDK runs each sync
 tool on a worker thread, so every call builds its own clients.
 

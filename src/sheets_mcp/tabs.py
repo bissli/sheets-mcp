@@ -124,17 +124,47 @@ def add_tab(
     add_tab(spreadsheet_id='1AbC', title='Q4', position=1)
     -> {'title': 'Q4', 'position': 1}
     """
+    reply = clients.sheets.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={'requests': [add_tab_request(title, position, rows, columns)]}).execute()
+    added = reply['replies'][0]['addSheet']['properties']
+    return {'title': added['title'], 'position': added['index'] + 1}
+
+
+def add_tab_request(
+        title: str,
+        position: int | None = None,
+        rows: int = 1000,
+        columns: int = 26,
+        sheet_id: int | None = None) -> dict:
+    """Sheets API addSheet request, for a caller that sends it in its own
+    batchUpdate.
+
+    Parameters
+    ----------
+    title : str
+    position : int, optional
+        1 puts the tab first. Omitted, the tab goes last.
+    rows, columns : int, default 1000 and 26
+        Grid size of the new tab.
+    sheet_id : int, optional
+        Grid id for the new tab, so later requests in the same batch can
+        name it. Omitted, Sheets picks one. Sheets refuses an id another
+        tab has.
+
+    Returns
+    -------
+    dict
+    """
     properties = {
         'title': title,
         'gridProperties': {'rowCount': rows, 'columnCount': columns},
         }
     if position is not None:
         properties['index'] = position - 1
-    reply = clients.sheets.spreadsheets().batchUpdate(
-        spreadsheetId=spreadsheet_id,
-        body={'requests': [{'addSheet': {'properties': properties}}]}).execute()
-    added = reply['replies'][0]['addSheet']['properties']
-    return {'title': added['title'], 'position': added['index'] + 1}
+    if sheet_id is not None:
+        properties['sheetId'] = sheet_id
+    return {'addSheet': {'properties': properties}}
 
 
 def edit_tab(
@@ -186,6 +216,44 @@ def edit_tab(
     -> {'title': 'Data', 'changed': ['title', 'frozen_rows']}
     """
     current = tab_properties(clients, spreadsheet_id, tab)
+    request, changed = tab_update_request(
+        current, title, position, hidden, color, frozen_rows, frozen_columns)
+    clients.sheets.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id, body={'requests': [request]}).execute()
+    return {'title': title or tab, 'changed': changed}
+
+
+def tab_update_request(
+        current: dict,
+        title: str | None = None,
+        position: int | None = None,
+        hidden: bool | None = None,
+        color: str | None = None,
+        frozen_rows: int | None = None,
+        frozen_columns: int | None = None) -> tuple[dict, list[str]]:
+    """Sheets API request that changes a tab's properties, for a caller that
+    sends it in its own batchUpdate.
+
+    Parameters
+    ----------
+    current : dict
+        The tab's SheetProperties as tab_properties returns them. Only
+        'sheetId' and 'index' are read, so a tab an earlier request in the
+        same batch adds passes as {'sheetId': ..., 'index': ...}.
+    title, position, hidden, color, frozen_rows, frozen_columns : optional
+        Each means what it means to edit_tab.
+
+    Returns
+    -------
+    tuple[dict, list[str]]
+        The updateSheetProperties request, and the names of the arguments
+        it sets, in parameter order.
+
+    Raises
+    ------
+    ValueError
+        No change was given, or color is neither '' nor '#RRGGBB'.
+    """
     properties = {'sheetId': current['sheetId']}
     fields = []
     changed = []
@@ -226,9 +294,7 @@ def edit_tab(
         'properties': properties,
         'fields': ','.join(fields),
         }}
-    clients.sheets.spreadsheets().batchUpdate(
-        spreadsheetId=spreadsheet_id, body={'requests': [request]}).execute()
-    return {'title': title or tab, 'changed': changed}
+    return request, changed
 
 
 def copy_tab(
