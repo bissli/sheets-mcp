@@ -49,8 +49,8 @@ def get_spreadsheet(clients: Clients, spreadsheet_id: str, fields: str) -> dict:
     Returns
     -------
     dict
-        The masked fields. Google leaves out a zero or false value, so a
-        sheetId or index of 0 is absent.
+        The masked fields. Google leaves out a GridRange index of 0, so
+        read each index with a default of 0.
     """
     return clients.sheets.spreadsheets().get(
         spreadsheetId=spreadsheet_id, fields=fields).execute()
