@@ -355,13 +355,21 @@ def copy_tab(
             body={'requests': [{'duplicateSheet': duplicate}]}).execute()
         copied = reply['replies'][0]['duplicateSheet']['properties']
         return {'spreadsheet_id': spreadsheet_id, 'title': copied['title']}
-    formulas = clients.sheets.spreadsheets().values().get(
+    # values.get FORMULA would return a text cell such as '=IMAGE(x) as
+    # a formula, and fails on a chart tab, which has no grid.
+    reply = clients.sheets.spreadsheets().get(
         spreadsheetId=spreadsheet_id,
-        range=a1.quote_tab(tab),
-        valueRenderOption='FORMULA').execute().get('values', [])
-    for row in formulas:
-        for value in row:
-            refuse_url_functions(value)
+        ranges=[a1.quote_tab(tab)],
+        fields='sheets.data.rowData.values.userEnteredValue.formulaValue').execute()
+    formulas = [
+        cell.get('userEnteredValue', {}).get('formulaValue')
+        for sheet in reply.get('sheets', [])
+        for block in sheet.get('data', [])
+        for row in block.get('rowData', [])
+        for cell in row.get('values', [])
+        ]
+    for formula in formulas:
+        refuse_url_functions(formula)
     copied = clients.sheets.spreadsheets().sheets().copyTo(
         spreadsheetId=spreadsheet_id,
         sheetId=sheet_id,

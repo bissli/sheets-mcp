@@ -1,5 +1,6 @@
 import pytest
-from sheets_mcp import a1, tabs
+from sheets_mcp import a1, tabs, values
+from sheets_mcp.values import RangeValues
 
 
 def tab_titles(fake, book):
@@ -188,6 +189,26 @@ def test_copy_tab_across_refuses_url_formula(fake, clients):
     with pytest.raises(ValueError, match='IMPORTXML'):
         tabs.copy_tab(clients, source, 'T', target)
     assert tab_titles(fake, target) == ['Sheet1']
+
+
+def test_copy_tab_across_copies_text_that_looks_like_a_url_formula(fake, clients):
+    """Verify text cells that start like a URL-fetching formula do not stop a
+    copy into another spreadsheet.
+
+    Mutation: the scan reading values.get FORMULA, which returns a text cell
+      as its bare string, so '=IMAGE(...)' stored as text and
+      '- IMAGE (see logo)' read as formulas.
+    Oracle: a live Sheet, where a RAW '=IMAGE(...)' and '- IMAGE (see logo)'
+      came back as stringValue and only '=1+1' as formulaValue.
+    """
+    source = fake.add_spreadsheet('Source', {'T': [['=1+1']]})
+    values.write_ranges(clients, source, [RangeValues(
+        range='T!A2', values=[['=IMAGE("https://example.com/logo.png")'],
+                              ['- IMAGE (see logo)']])], parse=False)
+    target = fake.add_spreadsheet('Target', {'Sheet1': []})
+    assert tabs.copy_tab(clients, source, 'T', target, title='Copy') == {
+        'spreadsheet_id': target, 'title': 'Copy'}
+    assert fake.cells(target, 'Copy')[1] == ['=IMAGE("https://example.com/logo.png")']
 
 
 def test_built_requests_name_a_tab_added_in_the_same_batch(fake, clients):

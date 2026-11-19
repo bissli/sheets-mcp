@@ -96,6 +96,26 @@ def parse_number(text: str) -> int | float | str:
     return int(text) if INTEGER_PATTERN.fullmatch(text) else float(text)
 
 
+class RawText(str):
+    """A cell value stored as text, as a RAW write stores a string that
+    starts with '='.
+    """
+
+
+def cell_data(value: Any) -> dict:
+    """The CellData of a stored value: its userEnteredValue.
+    """
+    if value == '':
+        return {}
+    if isinstance(value, bool):
+        return {'userEnteredValue': {'boolValue': value}}
+    if isinstance(value, int | float):
+        return {'userEnteredValue': {'numberValue': value}}
+    if value.startswith('=') and not isinstance(value, RawText):
+        return {'userEnteredValue': {'formulaValue': value}}
+    return {'userEnteredValue': {'stringValue': value}}
+
+
 def new_tab(
         title: str,
         sheet_id: int,
@@ -125,7 +145,8 @@ def fill_cells(
         rows: list[list],
         top: int,
         left: int,
-        parse: bool) -> None:
+        parse: bool,
+        raw: bool = False) -> None:
     """Write rows into tab with the first value at (top, left), 0-based.
 
     Parameters
@@ -137,6 +158,8 @@ def fill_cells(
         Row and column of the first value.
     parse : bool
         A str that reads as a number is stored as one.
+    raw : bool, default False
+        A str is stored as RawText, as a RAW write stores it.
     """
     for row_offset, row in enumerate(rows):
         for column_offset, value in enumerate(row):
@@ -147,6 +170,8 @@ def fill_cells(
                 tab['cells'].pop(position, None)
             elif parse and isinstance(value, str):
                 tab['cells'][position] = parse_number(value)
+            elif raw and isinstance(value, str):
+                tab['cells'][position] = RawText(value)
             else:
                 tab['cells'][position] = value
 
@@ -508,10 +533,27 @@ class FakeSpreadsheets:
         return FakeValues(self.fake)
 
     @lazy
-    def get(self, spreadsheetId: str) -> dict:
-        """The Spreadsheet resource with tab properties and no grid data.
+    def get(self, spreadsheetId: str, ranges: list[str] | None = None) -> dict:
+        """The Spreadsheet resource with tab properties. With ranges, only
+        the tabs they name, each with its range's grid data as
+        userEnteredValue. The fields mask is ignored.
         """
-        return spreadsheet_body(self.fake.spreadsheet(spreadsheetId))
+        spreadsheet = self.fake.spreadsheet(spreadsheetId)
+        body = spreadsheet_body(spreadsheet)
+        if ranges is None:
+            return body
+        values = FakeValues(self.fake)
+        body['sheets'] = []
+        for text in ranges:
+            tab, top, bottom, left, right = values.resolve(spreadsheet, text)
+            rows = values.read_block(tab, top, bottom, left, right)
+            body['sheets'].append({
+                'properties': copy.deepcopy(tab['properties']),
+                'data': [{'rowData': [
+                    {'values': [cell_data(value) for value in row]}
+                    for row in rows]}],
+                })
+        return body
 
     @lazy
     def create(self, body: dict) -> dict:
@@ -859,7 +901,7 @@ class FakeValues:
                     f'Requested writing within range [{text}], but tried '
                     f'writing to row [{top + row_count}], '
                     f'column [{left + column_count}]')
-            fill_cells(tab, values, top, left, parse)
+            fill_cells(tab, values, top, left, parse, raw=not parse)
             responses.append({
                 'updatedRange': render(
                     tab['properties']['title'],
@@ -896,7 +938,8 @@ class FakeValues:
                 f'Range ({range}) exceeds grid limits. '
                 f"Max columns: {grid['columnCount']}")
         grid['rowCount'] = max(grid['rowCount'], top + len(rows))
-        fill_cells(tab, rows, top, 0, valueInputOption == 'USER_ENTERED')
+        parse = valueInputOption == 'USER_ENTERED'
+        fill_cells(tab, rows, top, 0, parse, raw=not parse)
         updated_range = render(
             title, top, top + max(len(rows), 1), 0, max(column_count, 1))
         return {
